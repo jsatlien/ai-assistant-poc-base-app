@@ -110,6 +110,37 @@ const routes = [
     component: () => import('../Pages/Workflows/Edit.vue'),
     meta: { requiresAuth: true }
   },
+  // Administration routes
+  {
+    path: '/admin/users',
+    name: 'Users',
+    component: () => import('../Pages/Administration/Users.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/user-roles',
+    name: 'UserRoles',
+    component: () => import('../Pages/Administration/UserRoles.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/groups',
+    name: 'Groups',
+    component: () => import('../Pages/Groups/Groups.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/catalog-pricing',
+    name: 'CatalogPricing',
+    component: () => import('../Pages/Administration/CatalogPricing.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
+    path: '/admin/inventory',
+    name: 'Inventory',
+    component: () => import('../Pages/Administration/Inventory.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
   // Programs routes
   {
     path: '/programs',
@@ -144,9 +175,11 @@ const router = new VueRouter({
 
 // Navigation guards
 router.beforeEach((to, from, next) => {
-  // Check if the route requires authentication
+  // Check if the route requires authentication or admin permissions
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+  const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin)
   const isAuthenticated = store.state.isAuthenticated
+  const isAdmin = store.getters.isAdmin
   
   // Check authentication on initial load
   if (from.name === null) {
@@ -156,6 +189,9 @@ router.beforeEach((to, from, next) => {
   if (requiresAuth && !isAuthenticated) {
     // Redirect to login page if not authenticated
     next({ name: 'Login' })
+  } else if (requiresAdmin && !isAdmin) {
+    // Redirect to home if not admin but trying to access admin page
+    next({ name: 'Home' })
   } else if (to.path === '/login' && isAuthenticated) {
     // Redirect to home if already authenticated and trying to access login page
     next({ name: 'Home' })

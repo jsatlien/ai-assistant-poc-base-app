@@ -38,9 +38,24 @@
               class="form-control"
             />
           </div>
+
+          <div class="form-group">
+            <label for="group">Select Group</label>
+            <select 
+              id="group" 
+              v-model="selectedGroupId" 
+              class="form-control"
+              required
+            >
+              <option value="" disabled>Select a group</option>
+              <option v-for="group in groups" :key="group.id" :value="group.id">
+                {{ group.code }} - {{ group.description }}
+              </option>
+            </select>
+          </div>
           
           <div class="form-actions">
-            <button type="submit" class="btn-primary" :disabled="isLoading">
+            <button type="submit" class="btn-primary" :disabled="isLoading || !selectedGroupId">
               {{ isLoading ? 'Signing in...' : 'Sign In' }}
             </button>
           </div>
@@ -63,10 +78,17 @@ export default {
     return {
       username: '',
       password: '',
+      selectedGroupId: '',
       error: null,
       isLoading: false
     };
   },
+  computed: {
+    groups() {
+      return this.$store.getters.getGroups;
+    }
+  },
+
   methods: {
     async handleLogin() {
       this.isLoading = true;
@@ -83,7 +105,8 @@ export default {
           const user = {
             username: 'admin',
             displayName: 'Admin User',
-            role: 'Administrator'
+            role: 'Administrator',
+            isAdmin: true
           };
           
           // Store token in localStorage (simulated token)
@@ -92,6 +115,12 @@ export default {
           
           // Update Vuex store
           this.$store.commit('SET_AUTH', { user, isAuthenticated: true });
+          
+          // Set the selected group
+          const selectedGroup = this.groups.find(g => g.id === this.selectedGroupId);
+          if (selectedGroup) {
+            this.$store.dispatch('setCurrentGroup', selectedGroup);
+          }
           
           // Redirect to home page after successful login
           this.$router.push('/');
@@ -111,6 +140,9 @@ export default {
     if (this.$store.state.isAuthenticated) {
       this.$router.push('/');
     }
+    
+    // Fetch groups for the dropdown
+    this.$store.dispatch('fetchGroups');
   }
 };
 </script>

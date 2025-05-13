@@ -32,8 +32,23 @@
             <router-link to="/workflows/programs" class="dropdown-item">Programs</router-link>
           </div>
         </div>
+        <div class="dropdown" v-if="isAdmin">
+          <button class="nav-link dropdown-toggle">Administration</button>
+          <div class="dropdown-menu">
+            <router-link to="/admin/users" class="dropdown-item">Users</router-link>
+            <router-link to="/admin/user-roles" class="dropdown-item">User Roles</router-link>
+            <router-link to="/admin/groups" class="dropdown-item">Groups</router-link>
+            <router-link to="/admin/catalog-pricing" class="dropdown-item">Catalog Pricing</router-link>
+            <router-link to="/admin/inventory" class="dropdown-item">Inventory</router-link>
+          </div>
+        </div>
       </nav>
       <div class="user-menu">
+        <div v-if="currentGroup" class="current-group-display" @click="showGroupSelector = true">
+          <span class="current-group-label">Group:</span>
+          <span class="current-group-value">{{ currentGroup.code }}</span>
+          <span class="change-group-icon">🔄</span>
+        </div>
         <div class="dropdown">
           <button class="user-button dropdown-toggle">
             <span class="user-name">Admin User</span>
@@ -43,6 +58,34 @@
             <button class="dropdown-item logout-button" @click="logout">
               <span class="logout-icon">🚪</span> Logout
             </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Group Selector Modal -->
+      <div v-if="showGroupSelector" class="modal group-selector-modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Select Group</h2>
+            <button class="close-btn" @click="showGroupSelector = false">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div v-if="groups.length === 0" class="empty-state">
+              <p>No groups available. Please create a group first.</p>
+            </div>
+            <div v-else class="group-list">
+              <div 
+                v-for="group in groups" 
+                :key="group.id" 
+                class="group-item"
+                :class="{ 'active': currentGroup && currentGroup.id === group.id }"
+                @click="selectGroup(group)"
+              >
+                <div class="group-code">{{ group.code }}</div>
+                <div class="group-description">{{ group.description }}</div>
+                <div class="group-location">{{ group.city }}, {{ group.state }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -56,21 +99,46 @@
 <script>
 export default {
   name: 'App',
+  data() {
+    return {
+      showGroupSelector: false
+    }
+  },
   computed: {
     isLoginPage() {
       return this.$route && this.$route.path === '/login';
+    },
+    currentGroup() {
+      return this.$store.getters.getCurrentGroup;
+    },
+    groups() {
+      return this.$store.getters.getGroups;
+    },
+    isAdmin() {
+      return this.$store.getters.isAdmin;
+    }
+  },
+  created() {
+    // Fetch groups when app is created
+    if (this.$store.state.isAuthenticated) {
+      this.$store.dispatch('fetchGroups');
     }
   },
   methods: {
     logout() {
       // Clear authentication data
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('currentGroup');
       
       // Reset authentication state in store
       this.$store.commit('LOGOUT');
       
       // Redirect to login page
       this.$router.push('/login');
+    },
+    selectGroup(group) {
+      this.$store.dispatch('setCurrentGroup', group);
+      this.showGroupSelector = false;
     }
   }
 }
@@ -217,6 +285,7 @@ body {
 .user-menu {
   display: flex;
   align-items: center;
+  gap: 1rem;
 }
 
 .user-button {
@@ -354,5 +423,143 @@ input:focus, select:focus, textarea:focus {
   font-weight: 600;
   margin-bottom: 1rem;
   color: var(--dark-gray);
+}
+
+/* Group Selector Styles */
+.current-group-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--light-gray);
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.current-group-display:hover {
+  background-color: var(--medium-gray);
+}
+
+.current-group-label {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.current-group-value {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.change-group-icon {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.group-selector-modal .modal-content {
+  width: 500px;
+  max-width: 90%;
+}
+
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.group-item {
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--medium-gray);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.group-item:hover {
+  border-color: var(--primary-color);
+  background-color: rgba(0, 136, 204, 0.05);
+}
+
+.group-item.active {
+  border-color: var(--primary-color);
+  background-color: rgba(0, 136, 204, 0.1);
+}
+
+.group-code {
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: 0.25rem;
+}
+
+.group-description {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.group-location {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: var(--white);
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--medium-gray);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--dark-gray);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+}
+
+.close-btn:hover {
+  color: var(--dark-gray);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 0;
+  color: #666;
 }
 </style>

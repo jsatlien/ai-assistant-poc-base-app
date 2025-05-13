@@ -1,0 +1,599 @@
+<template>
+  <div class="groups-page">
+    <h1>Groups</h1>
+    <div class="page-actions">
+      <button class="btn-primary" @click="openGroupModal()">Add Group</button>
+      <div class="search-container">
+        <input type="text" v-model="searchQuery" placeholder="Search groups..." class="search-input" />
+      </div>
+    </div>
+
+    <div v-if="filteredGroups.length > 0" class="table-container">
+      <table class="data-table">
+        <colgroup>
+          <col style="width: 15%">
+          <col style="width: 20%">
+          <col style="width: 25%">
+          <col style="width: 15%">
+          <col style="width: 25%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Description</th>
+            <th>Address</th>
+            <th>Location</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="group in filteredGroups" :key="group.id">
+            <td>{{ group.code }}</td>
+            <td>{{ group.description }}</td>
+            <td>
+              {{ group.address1 }}
+              <span v-if="group.address2"><br>{{ group.address2 }}</span>
+              <span v-if="group.address3"><br>{{ group.address3 }}</span>
+              <span v-if="group.address4"><br>{{ group.address4 }}</span>
+            </td>
+            <td>{{ group.city }}, {{ group.state }} {{ group.zip }}<br>{{ group.country }}</td>
+            <td>
+              <div class="actions-cell">
+                <button class="btn-view" @click="setCurrentGroup(group)">Set Current</button>
+                <button class="btn-edit" @click="editGroup(group)">Edit</button>
+                <button class="btn-delete" @click="confirmDeleteGroup(group)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-else class="empty-state">
+      <p>No groups found. Add your first group to get started.</p>
+    </div>
+
+    <!-- Group Modal -->
+    <div v-if="showGroupModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>{{ isEditing ? 'Edit Group' : 'Add Group' }}</h2>
+          <button class="close-btn" @click="closeGroupModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveGroup">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="groupCode">Code</label>
+                <input 
+                  id="groupCode" 
+                  v-model="currentGroup.code" 
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="groupDescription">Description</label>
+                <input 
+                  id="groupDescription" 
+                  v-model="currentGroup.description" 
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="groupAddress1">Address Line 1</label>
+              <input 
+                id="groupAddress1" 
+                v-model="currentGroup.address1" 
+                class="form-control"
+                required
+              />
+            </div>
+            
+            <div class="form-group">
+              <label for="groupAddress2">Address Line 2</label>
+              <input 
+                id="groupAddress2" 
+                v-model="currentGroup.address2" 
+                class="form-control"
+              />
+            </div>
+            
+            <div class="form-group">
+              <label for="groupAddress3">Address Line 3</label>
+              <input 
+                id="groupAddress3" 
+                v-model="currentGroup.address3" 
+                class="form-control"
+              />
+            </div>
+            
+            <div class="form-group">
+              <label for="groupAddress4">Address Line 4</label>
+              <input 
+                id="groupAddress4" 
+                v-model="currentGroup.address4" 
+                class="form-control"
+              />
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="groupCity">City</label>
+                <input 
+                  id="groupCity" 
+                  v-model="currentGroup.city" 
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="groupState">State</label>
+                <input 
+                  id="groupState" 
+                  v-model="currentGroup.state" 
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="groupZip">Zip</label>
+                <input 
+                  id="groupZip" 
+                  v-model="currentGroup.zip" 
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="groupCountry">Country</label>
+                <input 
+                  id="groupCountry" 
+                  v-model="currentGroup.country" 
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" @click="closeGroupModal">Cancel</button>
+              <button type="submit" class="btn-primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div v-if="showConfirmationModal" class="modal">
+      <div class="modal-content confirmation-modal">
+        <div class="modal-header">
+          <h2>Confirm Delete</h2>
+          <button class="close-btn" @click="closeConfirmationModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the group "{{ groupToDelete?.code }} - {{ groupToDelete?.description }}"?</p>
+          <div class="form-actions">
+            <button class="btn-secondary" @click="closeConfirmationModal">Cancel</button>
+            <button class="btn-delete" @click="deleteGroup">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'GroupsManager',
+  data() {
+    return {
+      searchQuery: '',
+      showGroupModal: false,
+      showConfirmationModal: false,
+      isEditing: false,
+      currentGroup: {
+        id: null,
+        code: '',
+        description: '',
+        address1: '',
+        address2: '',
+        address3: '',
+        address4: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: ''
+      },
+      groupToDelete: null
+    }
+  },
+  computed: {
+    groups() {
+      return this.$store.getters.getGroups
+    },
+    filteredGroups() {
+      if (!this.searchQuery) return this.groups
+      
+      const query = this.searchQuery.toLowerCase()
+      return this.groups.filter(group => 
+        group.code.toLowerCase().includes(query) || 
+        group.description.toLowerCase().includes(query) ||
+        group.city.toLowerCase().includes(query) ||
+        group.state.toLowerCase().includes(query) ||
+        group.country.toLowerCase().includes(query)
+      )
+    }
+  },
+  created() {
+    this.$store.dispatch('fetchGroups')
+  },
+  methods: {
+    openGroupModal(group = null) {
+      this.isEditing = !!group
+      this.currentGroup = group 
+        ? JSON.parse(JSON.stringify(group)) // Deep copy to avoid reference issues
+        : {
+            id: null,
+            code: '',
+            description: '',
+            address1: '',
+            address2: '',
+            address3: '',
+            address4: '',
+            city: '',
+            state: '',
+            zip: '',
+            country: ''
+          }
+      this.showGroupModal = true
+    },
+    closeGroupModal() {
+      this.showGroupModal = false
+      this.currentGroup = {
+        id: null,
+        code: '',
+        description: '',
+        address1: '',
+        address2: '',
+        address3: '',
+        address4: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: ''
+      }
+    },
+    async saveGroup() {
+      if (!this.currentGroup.code.trim() || !this.currentGroup.description.trim()) {
+        alert('Group code and description are required')
+        return
+      }
+
+      try {
+        if (this.isEditing) {
+          await this.$store.dispatch('updateGroup', this.currentGroup)
+        } else {
+          await this.$store.dispatch('addGroup', this.currentGroup)
+        }
+        this.closeGroupModal()
+      } catch (error) {
+        console.error('Error saving group:', error)
+        alert('Failed to save group. Please try again.')
+      }
+    },
+    editGroup(group) {
+      this.openGroupModal(group)
+    },
+    confirmDeleteGroup(group) {
+      this.groupToDelete = group
+      this.showConfirmationModal = true
+    },
+    closeConfirmationModal() {
+      this.showConfirmationModal = false
+      this.groupToDelete = null
+    },
+    async deleteGroup() {
+      if (!this.groupToDelete) return
+
+      try {
+        await this.$store.dispatch('deleteGroup', this.groupToDelete.id)
+        this.closeConfirmationModal()
+      } catch (error) {
+        console.error('Error deleting group:', error)
+        alert('Failed to delete group. Please try again.')
+      }
+    },
+    async setCurrentGroup(group) {
+      try {
+        await this.$store.dispatch('setCurrentGroup', group)
+        alert(`Current group set to ${group.code} - ${group.description}`)
+      } catch (error) {
+        console.error('Error setting current group:', error)
+        alert('Failed to set current group. Please try again.')
+      }
+    }
+  }
+}
+</script>
+
+<style scoped>
+.groups-page {
+  padding: 2rem;
+}
+
+h1 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.page-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.search-container {
+  flex: 0 0 300px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.table-container {
+  margin-top: 1rem;
+  border-radius: 8px;
+  overflow: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  background-color: #fff;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  padding: 1rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+  height: 72px;
+}
+
+.data-table td:first-child {
+  padding-left: 1rem;
+}
+
+.data-table td:last-child {
+  padding-right: 0.5rem;
+}
+
+.data-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #333;
+}
+
+.data-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.3rem;
+  white-space: nowrap;
+  height: 100%;
+  align-items: center;
+  padding: 0.3rem 0;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.empty-state {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 3rem;
+  text-align: center;
+  color: #666;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #08c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #0077b3;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e5e5;
+}
+
+.btn-view {
+  background-color: transparent;
+  color: #17a2b8;
+  border: 1px solid #17a2b8;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.btn-view:hover {
+  background-color: #17a2b8;
+  color: #fff;
+}
+
+.btn-edit {
+  background-color: transparent;
+  color: #08c;
+  border: 1px solid #08c;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.btn-edit:hover {
+  background-color: #08c;
+  color: #fff;
+}
+
+.btn-delete {
+  background-color: transparent;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.btn-delete:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  border-radius: 8px;
+  width: 1200px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.confirmation-modal {
+  width: 400px;
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-control:focus {
+  border-color: #08c;
+  outline: none;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+</style>

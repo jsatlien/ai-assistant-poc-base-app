@@ -20,9 +20,16 @@ export default new Vuex.Store({
     workflows: [],
     // Programs
     programs: [],
+    // Groups
+    groups: [],
+    currentGroup: null,
     // Authentication
     user: null,
-    isAuthenticated: false
+    isAuthenticated: false,
+    userRoles: [],
+    catalogPricing: [],
+    // Inventory
+    inventory: []
   },
   getters: {
     // Catalog getters
@@ -58,9 +65,25 @@ export default new Vuex.Store({
     // Program getters
     getPrograms: state => state.programs,
     getProgramById: state => id => state.programs.find(p => p.id === id),
+    // Group getters
+    getGroups: state => state.groups,
+    getGroupById: state => id => state.groups.find(g => g.id === id),
+    getCurrentGroup: state => state.currentGroup,
     // Auth getters
     isAuthenticated: state => state.isAuthenticated,
-    currentUser: state => state.user
+    currentUser: state => state.user,
+    isAdmin: state => state.user && state.user.isAdmin,
+    getUserRoles: state => state.userRoles,
+    getCatalogPricing: state => state.catalogPricing,
+    // Inventory getters
+    getInventory: state => state.inventory,
+    getInventoryByGroup: state => groupId => {
+      return state.inventory.filter(item => item.groupId === groupId);
+    },
+    getCurrentGroupInventory: state => {
+      if (!state.currentGroup) return [];
+      return state.inventory.filter(item => item.groupId === state.currentGroup.id);
+    }
   },
   mutations: {
     // Catalog mutations
@@ -229,6 +252,92 @@ export default new Vuex.Store({
         state.programs.splice(index, 1, updatedProgram)
       }
     },
+    // Group mutations
+    SET_GROUPS(state, groups) {
+      state.groups = groups
+    },
+    ADD_GROUP(state, group) {
+      state.groups.push(group)
+    },
+    UPDATE_GROUP(state, updatedGroup) {
+      const index = state.groups.findIndex(g => g.id === updatedGroup.id)
+      if (index !== -1) {
+        state.groups.splice(index, 1, updatedGroup)
+      }
+      // If this is the current group, update it as well
+      if (state.currentGroup && state.currentGroup.id === updatedGroup.id) {
+        state.currentGroup = updatedGroup
+        localStorage.setItem('currentGroup', JSON.stringify(updatedGroup))
+      }
+    },
+    DELETE_GROUP(state, groupId) {
+      state.groups = state.groups.filter(g => g.id !== groupId)
+      // If this is the current group, clear it
+      if (state.currentGroup && state.currentGroup.id === groupId) {
+        state.currentGroup = null
+        localStorage.removeItem('currentGroup')
+      }
+    },
+    SET_CURRENT_GROUP(state, group) {
+      state.currentGroup = group
+      if (group) {
+        localStorage.setItem('currentGroup', JSON.stringify(group))
+      } else {
+        localStorage.removeItem('currentGroup')
+      }
+    },
+    // User Roles mutations
+    SET_USER_ROLES(state, roles) {
+      state.userRoles = roles
+    },
+    ADD_USER_ROLE(state, role) {
+      state.userRoles.push(role)
+    },
+    UPDATE_USER_ROLE(state, updatedRole) {
+      const index = state.userRoles.findIndex(r => r.id === updatedRole.id)
+      if (index !== -1) {
+        state.userRoles.splice(index, 1, updatedRole)
+      }
+    },
+    DELETE_USER_ROLE(state, roleId) {
+      state.userRoles = state.userRoles.filter(r => r.id !== roleId)
+    },
+    // Catalog Pricing mutations
+    SET_CATALOG_PRICING(state, pricing) {
+      state.catalogPricing = pricing
+    },
+    ADD_CATALOG_PRICE(state, price) {
+      state.catalogPricing.push(price)
+    },
+    UPDATE_CATALOG_PRICE(state, updatedPrice) {
+      const index = state.catalogPricing.findIndex(p => p.id === updatedPrice.id)
+      if (index !== -1) {
+        state.catalogPricing.splice(index, 1, updatedPrice)
+      }
+    },
+    DELETE_CATALOG_PRICE(state, priceId) {
+      state.catalogPricing = state.catalogPricing.filter(p => p.id !== priceId)
+    },
+    // Inventory mutations
+    SET_INVENTORY(state, inventory) {
+      state.inventory = inventory
+    },
+    ADD_INVENTORY_ITEM(state, item) {
+      state.inventory.push(item)
+    },
+    UPDATE_INVENTORY_ITEM(state, updatedItem) {
+      const index = state.inventory.findIndex(i => 
+        i.groupId === updatedItem.groupId && i.catalogItemId === updatedItem.catalogItemId && i.catalogItemType === updatedItem.catalogItemType
+      )
+      if (index !== -1) {
+        state.inventory.splice(index, 1, updatedItem)
+      }
+    },
+    DELETE_INVENTORY_ITEM(state, { groupId, catalogItemId, catalogItemType }) {
+      state.inventory = state.inventory.filter(i => 
+        !(i.groupId === groupId && i.catalogItemId === catalogItemId && i.catalogItemType === catalogItemType)
+      )
+    },
     // Auth mutations
     SET_USER(state, user) {
       state.user = user
@@ -240,7 +349,7 @@ export default new Vuex.Store({
     LOGOUT(state) {
       state.user = null
       state.isAuthenticated = false
-    }
+    },
   },
   actions: {
     // Catalog actions
@@ -887,11 +996,257 @@ export default new Vuex.Store({
         // Set default Authorization header for all future requests
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`
         
+        // For demo purposes, set admin status
+        user.isAdmin = true
+        
         commit('SET_AUTH', { user, isAuthenticated: true })
         return user
       } catch (error) {
         console.error('Login error:', error)
         throw error
+      }
+    },
+    
+    // User Roles actions
+    async fetchUserRoles({ commit }) {
+      try {
+        const response = await api.get('/user-roles')
+        commit('SET_USER_ROLES', response.data)
+      } catch (error) {
+        console.error('Error fetching user roles:', error)
+        // For demo purposes, create some sample roles if API fails
+        const demoRoles = [
+          {
+            id: 1,
+            name: 'Administrator',
+            description: 'Full system access',
+            isAdmin: true,
+            isReadOnly: false
+          },
+          {
+            id: 2,
+            name: 'Manager',
+            description: 'Can manage work orders and catalog',
+            isAdmin: false,
+            isReadOnly: false
+          },
+          {
+            id: 3,
+            name: 'Viewer',
+            description: 'Read-only access to the system',
+            isAdmin: false,
+            isReadOnly: true
+          }
+        ]
+        commit('SET_USER_ROLES', demoRoles)
+      }
+    },
+    async addUserRole({ commit }, role) {
+      try {
+        const response = await api.post('/user-roles', role)
+        commit('ADD_USER_ROLE', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating user role:', error)
+        // For demo purposes
+        const newRole = {
+          ...role,
+          id: Math.floor(Math.random() * 10000) + 10
+        }
+        commit('ADD_USER_ROLE', newRole)
+        return newRole
+      }
+    },
+    async updateUserRole({ commit }, role) {
+      try {
+        const response = await api.put(`/user-roles/${role.id}`, role)
+        commit('UPDATE_USER_ROLE', response.data)
+        return response.data
+      } catch (error) {
+        console.error(`Error updating user role ${role.id}:`, error)
+        // For demo purposes
+        commit('UPDATE_USER_ROLE', role)
+        return role
+      }
+    },
+    async deleteUserRole({ commit }, roleId) {
+      try {
+        await api.delete(`/user-roles/${roleId}`)
+        commit('DELETE_USER_ROLE', roleId)
+      } catch (error) {
+        console.error(`Error deleting user role ${roleId}:`, error)
+        // For demo purposes
+        commit('DELETE_USER_ROLE', roleId)
+      }
+    },
+    
+    // Catalog Pricing actions
+    async fetchCatalogPricing({ commit }) {
+      try {
+        const response = await api.get('/catalog-pricing')
+        commit('SET_CATALOG_PRICING', response.data)
+      } catch (error) {
+        console.error('Error fetching catalog pricing:', error)
+        // For demo purposes, create some sample pricing if API fails
+        const demoPricing = [
+          {
+            id: 1,
+            catalogItemId: 1,
+            catalogItemType: 'Service',
+            catalogItemName: 'Screen Replacement',
+            price: 149.99
+          },
+          {
+            id: 2,
+            catalogItemId: 2,
+            catalogItemType: 'Service',
+            catalogItemName: 'Battery Replacement',
+            price: 79.99
+          },
+          {
+            id: 3,
+            catalogItemId: 3,
+            catalogItemType: 'Part',
+            catalogItemName: 'iPhone Screen',
+            price: 89.99
+          }
+        ]
+        commit('SET_CATALOG_PRICING', demoPricing)
+      }
+    },
+    async addCatalogPrice({ commit }, price) {
+      try {
+        const response = await api.post('/catalog-pricing', price)
+        commit('ADD_CATALOG_PRICE', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating catalog price:', error)
+        // For demo purposes
+        const newPrice = {
+          ...price,
+          id: Math.floor(Math.random() * 10000) + 10
+        }
+        commit('ADD_CATALOG_PRICE', newPrice)
+        return newPrice
+      }
+    },
+    async updateCatalogPrice({ commit }, price) {
+      try {
+        const response = await api.put(`/catalog-pricing/${price.id}`, price)
+        commit('UPDATE_CATALOG_PRICE', response.data)
+        return response.data
+      } catch (error) {
+        console.error(`Error updating catalog price ${price.id}:`, error)
+        // For demo purposes
+        commit('UPDATE_CATALOG_PRICE', price)
+        return price
+      }
+    },
+    async deleteCatalogPrice({ commit }, priceId) {
+      try {
+        await api.delete(`/catalog-pricing/${priceId}`)
+        commit('DELETE_CATALOG_PRICE', priceId)
+      } catch (error) {
+        console.error(`Error deleting catalog price ${priceId}:`, error)
+        // For demo purposes
+        commit('DELETE_CATALOG_PRICE', priceId)
+      }
+    },
+    
+    // Inventory actions
+    async fetchInventory({ commit }) {
+      try {
+        const response = await api.get('/inventory')
+        commit('SET_INVENTORY', response.data)
+      } catch (error) {
+        console.error('Error fetching inventory:', error)
+        // For demo purposes, create some sample inventory if API fails
+        const demoInventory = [
+          {
+            id: 1,
+            groupId: 1,
+            catalogItemId: 1,
+            catalogItemType: 'Part',
+            catalogItemName: 'iPhone Screen',
+            quantity: 25,
+            minimumQuantity: 5,
+            lastUpdated: new Date()
+          },
+          {
+            id: 2,
+            groupId: 1,
+            catalogItemId: 2,
+            catalogItemType: 'Part',
+            catalogItemName: 'Samsung Screen',
+            quantity: 15,
+            minimumQuantity: 3,
+            lastUpdated: new Date()
+          },
+          {
+            id: 3,
+            groupId: 2,
+            catalogItemId: 1,
+            catalogItemType: 'Part',
+            catalogItemName: 'iPhone Screen',
+            quantity: 10,
+            minimumQuantity: 5,
+            lastUpdated: new Date()
+          }
+        ]
+        commit('SET_INVENTORY', demoInventory)
+      }
+    },
+    async fetchGroupInventory(context, groupId) {
+      try {
+        const response = await api.get(`/inventory/group/${groupId}`)
+        return response.data
+      } catch (error) {
+        console.error(`Error fetching inventory for group ${groupId}:`, error)
+        // Return demo data filtered by group
+        return this.state.inventory.filter(item => item.groupId === groupId)
+      }
+    },
+    async addInventoryItem({ commit }, item) {
+      try {
+        const response = await api.post('/inventory', item)
+        commit('ADD_INVENTORY_ITEM', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating inventory item:', error)
+        // For demo purposes
+        const newItem = {
+          ...item,
+          id: Math.floor(Math.random() * 10000) + 10,
+          lastUpdated: new Date()
+        }
+        commit('ADD_INVENTORY_ITEM', newItem)
+        return newItem
+      }
+    },
+    async updateInventoryItem({ commit }, item) {
+      try {
+        const response = await api.put(`/inventory/${item.id}`, item)
+        commit('UPDATE_INVENTORY_ITEM', response.data)
+        return response.data
+      } catch (error) {
+        console.error(`Error updating inventory item ${item.id}:`, error)
+        // For demo purposes
+        const updatedItem = {
+          ...item,
+          lastUpdated: new Date()
+        }
+        commit('UPDATE_INVENTORY_ITEM', updatedItem)
+        return updatedItem
+      }
+    },
+    async deleteInventoryItem({ commit }, { groupId, catalogItemId, catalogItemType }) {
+      try {
+        await api.delete(`/inventory/${groupId}/${catalogItemId}/${catalogItemType}`)
+        commit('DELETE_INVENTORY_ITEM', { groupId, catalogItemId, catalogItemType })
+      } catch (error) {
+        console.error(`Error deleting inventory item:`, error)
+        // For demo purposes
+        commit('DELETE_INVENTORY_ITEM', { groupId, catalogItemId, catalogItemType })
       }
     },
     logout({ commit }) {
@@ -911,10 +1266,119 @@ export default new Vuex.Store({
         
         // For simplicity, we're just setting isAuthenticated to true
         // In a real app, you'd verify the token with the server
-        commit('SET_AUTH', { user: { name: 'Admin User' }, isAuthenticated: true })
+        commit('SET_AUTH', { user: { name: 'Admin User', isAdmin: true }, isAuthenticated: true })
+
+        // Restore current group from localStorage if available
+        const savedGroup = localStorage.getItem('currentGroup')
+        if (savedGroup) {
+          commit('SET_CURRENT_GROUP', JSON.parse(savedGroup))
+        }
+        
         return true
       }
       return false
+    },
+
+    // Group actions
+    async fetchGroups({ commit }) {
+      try {
+        const response = await api.get('/groups')
+        commit('SET_GROUPS', response.data)
+      } catch (error) {
+        console.error('Error fetching groups:', error)
+        // For demo purposes, create some sample groups if API fails
+        const demoGroups = [
+          {
+            id: 1,
+            code: 'MAIN',
+            description: 'Main Repair Center',
+            address1: '123 Main Street',
+            address2: 'Suite 100',
+            address3: '',
+            address4: '',
+            city: 'Boston',
+            state: 'MA',
+            zip: '02108',
+            country: 'USA'
+          },
+          {
+            id: 2,
+            code: 'WEST',
+            description: 'West Coast Repair Center',
+            address1: '456 Tech Blvd',
+            address2: '',
+            address3: '',
+            address4: '',
+            city: 'San Francisco',
+            state: 'CA',
+            zip: '94105',
+            country: 'USA'
+          },
+          {
+            id: 3,
+            code: 'SOUTH',
+            description: 'Southern Repair Center',
+            address1: '789 Repair Lane',
+            address2: 'Building B',
+            address3: '',
+            address4: '',
+            city: 'Austin',
+            state: 'TX',
+            zip: '78701',
+            country: 'USA'
+          }
+        ]
+        commit('SET_GROUPS', demoGroups)
+      }
+    },
+    async fetchGroup(context, id) {
+      try {
+        const response = await api.get(`/groups/${id}`)
+        return response.data
+      } catch (error) {
+        console.error(`Error fetching group ${id}:`, error)
+      }
+    },
+    async addGroup({ commit }, group) {
+      try {
+        const response = await api.post('/groups', group)
+        commit('ADD_GROUP', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating group:', error)
+        // For demo purposes
+        const newGroup = {
+          ...group,
+          id: Math.floor(Math.random() * 10000) + 10
+        }
+        commit('ADD_GROUP', newGroup)
+        return newGroup
+      }
+    },
+    async updateGroup({ commit }, group) {
+      try {
+        const response = await api.put(`/groups/${group.id}`, group)
+        commit('UPDATE_GROUP', response.data)
+        return response.data
+      } catch (error) {
+        console.error(`Error updating group ${group.id}:`, error)
+        // For demo purposes
+        commit('UPDATE_GROUP', group)
+        return group
+      }
+    },
+    async deleteGroup({ commit }, groupId) {
+      try {
+        await api.delete(`/groups/${groupId}`)
+        commit('DELETE_GROUP', groupId)
+      } catch (error) {
+        console.error(`Error deleting group ${groupId}:`, error)
+        // For demo purposes
+        commit('DELETE_GROUP', groupId)
+      }
+    },
+    setCurrentGroup({ commit }, group) {
+      commit('SET_CURRENT_GROUP', group)
     }
   }
 })

@@ -1,0 +1,596 @@
+<template>
+  <div class="users-page">
+    <h1>User Management</h1>
+    <div class="page-actions">
+      <button class="btn-primary" @click="openUserModal()">Add User</button>
+      <div class="search-container">
+        <input type="text" v-model="searchQuery" placeholder="Search users..." class="search-input" />
+      </div>
+    </div>
+
+    <div v-if="filteredUsers.length > 0" class="table-container">
+      <table class="data-table">
+        <colgroup>
+          <col style="width: 20%">
+          <col style="width: 20%">
+          <col style="width: 20%">
+          <col style="width: 20%">
+          <col style="width: 20%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in filteredUsers" :key="user.id">
+            <td>{{ user.username }}</td>
+            <td>{{ user.fullName }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ getUserRoleName(user.roleId) }}</td>
+            <td>
+              <div class="actions-cell">
+                <button class="btn-edit" @click="editUser(user)">Edit</button>
+                <button class="btn-delete" @click="confirmDeleteUser(user)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-else class="empty-state">
+      <p>No users found. Add your first user to get started.</p>
+    </div>
+
+    <!-- User Modal -->
+    <div v-if="showUserModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>{{ isEditing ? 'Edit User' : 'Add User' }}</h2>
+          <button class="close-btn" @click="closeUserModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveUser">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="username">Username</label>
+                <input 
+                  id="username" 
+                  v-model="currentUser.username" 
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="fullName">Full Name</label>
+                <input 
+                  id="fullName" 
+                  v-model="currentUser.fullName" 
+                  class="form-control"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="email">Email</label>
+                <input 
+                  id="email" 
+                  type="email"
+                  v-model="currentUser.email" 
+                  class="form-control"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="roleId">Role</label>
+                <select 
+                  id="roleId" 
+                  v-model="currentUser.roleId" 
+                  class="form-control"
+                  required
+                >
+                  <option v-for="role in userRoles" :key="role.id" :value="role.id">
+                    {{ role.name }}
+                  </option>
+                </select>
+              </div>
+            </div>
+            
+            <div v-if="!isEditing" class="form-row">
+              <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                  id="password" 
+                  type="password"
+                  v-model="currentUser.password" 
+                  class="form-control"
+                  :required="!isEditing"
+                />
+              </div>
+              <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input 
+                  id="confirmPassword" 
+                  type="password"
+                  v-model="confirmPassword" 
+                  class="form-control"
+                  :required="!isEditing"
+                />
+              </div>
+            </div>
+            
+            <div v-if="isEditing" class="form-row">
+              <div class="form-group">
+                <label for="newPassword">New Password (leave blank to keep current)</label>
+                <input 
+                  id="newPassword" 
+                  type="password"
+                  v-model="currentUser.newPassword" 
+                  class="form-control"
+                />
+              </div>
+              <div class="form-group">
+                <label for="confirmNewPassword">Confirm New Password</label>
+                <input 
+                  id="confirmNewPassword" 
+                  type="password"
+                  v-model="confirmNewPassword" 
+                  class="form-control"
+                />
+              </div>
+            </div>
+            
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" @click="closeUserModal">Cancel</button>
+              <button type="submit" class="btn-primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div v-if="showConfirmationModal" class="modal">
+      <div class="modal-content confirmation-modal">
+        <div class="modal-header">
+          <h2>Confirm Delete</h2>
+          <button class="close-btn" @click="closeConfirmationModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the user "{{ userToDelete?.username }}"?</p>
+          <div class="form-actions">
+            <button class="btn-secondary" @click="closeConfirmationModal">Cancel</button>
+            <button class="btn-delete" @click="deleteUser">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'UsersManager',
+  data() {
+    return {
+      searchQuery: '',
+      showUserModal: false,
+      showConfirmationModal: false,
+      isEditing: false,
+      currentUser: {
+        id: null,
+        username: '',
+        fullName: '',
+        email: '',
+        password: '',
+        newPassword: '',
+        roleId: null
+      },
+      confirmPassword: '',
+      confirmNewPassword: '',
+      userToDelete: null,
+      users: [
+        {
+          id: 1,
+          username: 'admin',
+          fullName: 'Admin User',
+          email: 'admin@example.com',
+          roleId: 1
+        },
+        {
+          id: 2,
+          username: 'manager',
+          fullName: 'Manager User',
+          email: 'manager@example.com',
+          roleId: 2
+        },
+        {
+          id: 3,
+          username: 'viewer',
+          fullName: 'Viewer User',
+          email: 'viewer@example.com',
+          roleId: 3
+        }
+      ]
+    }
+  },
+  computed: {
+    userRoles() {
+      return this.$store.getters.getUserRoles
+    },
+    filteredUsers() {
+      if (!this.searchQuery) return this.users
+      
+      const query = this.searchQuery.toLowerCase()
+      return this.users.filter(user => 
+        user.username.toLowerCase().includes(query) || 
+        user.fullName.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query)
+      )
+    }
+  },
+  created() {
+    this.$store.dispatch('fetchUserRoles')
+  },
+  methods: {
+    getUserRoleName(roleId) {
+      const role = this.userRoles.find(r => r.id === roleId)
+      return role ? role.name : 'Unknown'
+    },
+    openUserModal(user = null) {
+      this.isEditing = !!user
+      this.currentUser = user 
+        ? JSON.parse(JSON.stringify(user)) // Deep copy to avoid reference issues
+        : {
+            id: null,
+            username: '',
+            fullName: '',
+            email: '',
+            password: '',
+            newPassword: '',
+            roleId: this.userRoles.length > 0 ? this.userRoles[0].id : null
+          }
+      this.confirmPassword = ''
+      this.confirmNewPassword = ''
+      this.showUserModal = true
+    },
+    closeUserModal() {
+      this.showUserModal = false
+      this.currentUser = {
+        id: null,
+        username: '',
+        fullName: '',
+        email: '',
+        password: '',
+        newPassword: '',
+        roleId: null
+      }
+      this.confirmPassword = ''
+      this.confirmNewPassword = ''
+    },
+    saveUser() {
+      // Validate form
+      if (!this.currentUser.username || !this.currentUser.fullName || !this.currentUser.email || !this.currentUser.roleId) {
+        alert('Please fill in all required fields')
+        return
+      }
+
+      // Validate passwords
+      if (!this.isEditing && this.currentUser.password !== this.confirmPassword) {
+        alert('Passwords do not match')
+        return
+      }
+
+      if (this.isEditing && this.currentUser.newPassword && this.currentUser.newPassword !== this.confirmNewPassword) {
+        alert('New passwords do not match')
+        return
+      }
+
+      // For demo purposes, we'll just update the local array
+      if (this.isEditing) {
+        const index = this.users.findIndex(u => u.id === this.currentUser.id)
+        if (index !== -1) {
+          // Remove password fields before saving
+          const userToSave = { ...this.currentUser }
+          delete userToSave.password
+          delete userToSave.newPassword
+          
+          this.users.splice(index, 1, userToSave)
+        }
+      } else {
+        // Generate a new ID for the user
+        const newId = Math.max(...this.users.map(u => u.id), 0) + 1
+        
+        // Remove unnecessary fields
+        const userToSave = { ...this.currentUser, id: newId }
+        delete userToSave.newPassword
+        
+        this.users.push(userToSave)
+      }
+
+      this.closeUserModal()
+    },
+    editUser(user) {
+      this.openUserModal(user)
+    },
+    confirmDeleteUser(user) {
+      this.userToDelete = user
+      this.showConfirmationModal = true
+    },
+    closeConfirmationModal() {
+      this.showConfirmationModal = false
+      this.userToDelete = null
+    },
+    deleteUser() {
+      if (!this.userToDelete) return
+
+      // For demo purposes, we'll just update the local array
+      this.users = this.users.filter(u => u.id !== this.userToDelete.id)
+      this.closeConfirmationModal()
+    }
+  }
+}
+</script>
+
+<style scoped>
+.users-page {
+  padding: 2rem;
+}
+
+h1 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.page-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.search-container {
+  flex: 0 0 300px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.table-container {
+  margin-top: 1rem;
+  border-radius: 8px;
+  overflow: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  background-color: #fff;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  padding: 1rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+  height: 72px;
+}
+
+.data-table td:first-child {
+  padding-left: 1rem;
+}
+
+.data-table td:last-child {
+  padding-right: 0.5rem;
+}
+
+.data-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #333;
+}
+
+.data-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+  height: 100%;
+  align-items: center;
+  padding: 0.3rem 0;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.empty-state {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 3rem;
+  text-align: center;
+  color: #666;
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #08c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #0077b3;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e5e5;
+}
+
+.btn-edit {
+  background-color: transparent;
+  color: #08c;
+  border: 1px solid #08c;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.btn-edit:hover {
+  background-color: #08c;
+  color: #fff;
+}
+
+.btn-delete {
+  background-color: transparent;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.btn-delete:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  border-radius: 8px;
+  width: 800px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.confirmation-modal {
+  width: 400px;
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-control:focus {
+  border-color: #08c;
+  outline: none;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+</style>
