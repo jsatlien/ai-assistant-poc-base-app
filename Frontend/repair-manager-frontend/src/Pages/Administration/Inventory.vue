@@ -2,7 +2,7 @@
   <div class="inventory-manager">
     <div class="page-header">
       <h1>Inventory Management</h1>
-      <div class="header-actions">
+      <div class="header-actions" v-if="canManageInventory">
         <button @click="openAddModal" class="btn btn-primary">
           <i class="fas fa-plus"></i> Add Inventory Item
         </button>
@@ -24,78 +24,82 @@
           <option value="">All Types</option>
           <option value="Part">Parts</option>
           <option value="Device">Devices</option>
-          <option value="Service">Services</option>
         </select>
       </div>
       <div class="filter-group">
         <label>Filter by Name:</label>
         <input type="text" v-model="filters.name" class="form-control" placeholder="Search by name...">
       </div>
-      <div class="filter-group">
-        <label>Show Low Stock Only:</label>
-        <input type="checkbox" v-model="filters.lowStock">
+      <div class="filter-group checkbox-group">
+        <div class="checkbox-container">
+          <input type="checkbox" id="lowStockFilter" v-model="filters.lowStock">
+          <label for="lowStockFilter">Show Low Stock Only</label>
+        </div>
       </div>
     </div>
 
     <!-- Inventory Table -->
-    <div class="card">
-      <div class="table-responsive">
-        <table class="inventory-table">
-          <thead>
-            <tr>
-              <th>Item Name</th>
-              <th>Type</th>
-              <th>Quantity</th>
-              <th>Min. Quantity</th>
-              <th>Status</th>
-              <th>Last Updated</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="filteredInventory.length === 0">
-              <td colspan="7" class="text-center">No inventory items found</td>
-            </tr>
-            <tr v-for="item in filteredInventory" :key="item.id" :class="{'low-stock': item.quantity < item.minimumQuantity}">
-              <td>{{ item.catalogItemName }}</td>
-              <td>{{ item.catalogItemType }}</td>
-              <td>{{ item.quantity }}</td>
-              <td>{{ item.minimumQuantity }}</td>
-              <td>
-                <span :class="getStockStatusClass(item)">
-                  {{ getStockStatus(item) }}
-                </span>
-              </td>
-              <td>{{ formatDate(item.lastUpdated) }}</td>
-              <td class="action-buttons">
-                <button @click="openEditModal(item)" class="btn-icon btn-edit">
-                  <i class="fas fa-edit"></i>
-                </button>
-                <button @click="confirmDelete(item)" class="btn-icon btn-delete">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable 
+      :columns="tableColumns" 
+      :items="filteredInventory" 
+      :row-class-function="getRowClass"
+      :show-actions="canManageInventory"
+      empty-message="No inventory items found"
+    >
+      <template #status="{ item }">
+        <span :class="getStockStatusClass(item)">
+          {{ getStockStatus(item) }}
+        </span>
+      </template>
+      
+      <template #manufacturer="{ item }">
+        {{ getManufacturerName(item) }}
+      </template>
+      
+      <template #lastUpdated="{ item }">
+        {{ formatDate(item.lastUpdated) }}
+      </template>
+      
+      <template #actions="{ item }">
+        <ActionButton 
+          type="info" 
+          icon="edit" 
+          label="Edit" 
+          title="Edit inventory item"
+          @click="openEditModal(item)" 
+        />
+        <ActionButton 
+          type="danger" 
+          icon="trash" 
+          label="Delete" 
+          title="Delete inventory item"
+          margin="left"
+          @click="confirmDelete(item)" 
+        />
+      </template>
+    </DataTable>
 
     <!-- Add/Edit Modal -->
     <div class="modal" :class="{ 'show': showModal }" v-if="showModal">
       <div class="modal-dialog">
-        <div class="modal-content">
+        <div class="modal-content inventory-modal">
           <div class="modal-header">
-            <h5 class="modal-title">{{ isEditing ? 'Edit Inventory Item' : 'Add Inventory Item' }}</h5>
-            <button type="button" class="close" @click="closeModal">
-              <span>&times;</span>
+            <h2 class="modal-title">{{ isEditing ? 'Edit Inventory Item' : 'Add Inventory Item' }}</h2>
+            <button type="button" class="close-btn" @click="closeModal">
+              &times;
             </button>
           </div>
           <div class="modal-body">
             <form @submit.prevent="saveInventoryItem">
               <div class="form-group">
-                <label>Catalog Item</label>
-                <select v-model="currentItem.catalogItemId" class="form-control" :disabled="isEditing" required>
+                <label for="catalogItem">Catalog Item</label>
+                <select 
+                  id="catalogItem"
+                  v-model="currentItem.catalogItemId" 
+                  class="form-control" 
+                  :disabled="isEditing" 
+                  required
+                >
                   <option value="" disabled>Select an item</option>
                   <option v-for="item in catalogItems" :key="`${item.type}-${item.id}`" :value="item.id">
                     {{ item.name }} ({{ item.type }})
@@ -103,16 +107,39 @@
                 </select>
               </div>
               <div class="form-group">
-                <label>Quantity</label>
-                <input type="number" v-model.number="currentItem.quantity" class="form-control" min="0" required>
+                <label for="quantity">Quantity</label>
+                <input 
+                  id="quantity"
+                  type="number" 
+                  v-model.number="currentItem.quantity" 
+                  class="form-control" 
+                  min="0" 
+                  required
+                >
               </div>
               <div class="form-group">
-                <label>Minimum Quantity</label>
-                <input type="number" v-model.number="currentItem.minimumQuantity" class="form-control" min="0" required>
+                <label for="minQuantity">Minimum Quantity</label>
+                <input 
+                  id="minQuantity"
+                  type="number" 
+                  v-model.number="currentItem.minimumQuantity" 
+                  class="form-control" 
+                  min="0" 
+                  required
+                >
               </div>
-              <div class="form-group text-right">
-                <button type="button" class="btn btn-secondary mr-2" @click="closeModal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save</button>
+              <div class="form-actions">
+                <ActionButton 
+                  type="secondary" 
+                  label="Cancel" 
+                  margin="right"
+                  @click="closeModal" 
+                />
+                <ActionButton 
+                  type="primary" 
+                  label="Save" 
+                  @click="saveInventoryItem" 
+                />
               </div>
             </form>
           </div>
@@ -123,19 +150,28 @@
     <!-- Delete Confirmation Modal -->
     <div class="modal" :class="{ 'show': showDeleteModal }" v-if="showDeleteModal">
       <div class="modal-dialog">
-        <div class="modal-content">
+        <div class="modal-content confirmation-modal">
           <div class="modal-header">
-            <h5 class="modal-title">Confirm Delete</h5>
-            <button type="button" class="close" @click="showDeleteModal = false">
-              <span>&times;</span>
+            <h2 class="modal-title">Confirm Delete</h2>
+            <button type="button" class="close-btn" @click="showDeleteModal = false">
+              &times;
             </button>
           </div>
           <div class="modal-body">
             <p>Are you sure you want to delete the inventory record for <strong>{{ itemToDelete?.catalogItemName }}</strong>?</p>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" @click="showDeleteModal = false">Cancel</button>
-            <button type="button" class="btn btn-danger" @click="deleteItem">Delete</button>
+            <div class="form-actions">
+              <ActionButton 
+                type="secondary" 
+                label="Cancel" 
+                margin="right"
+                @click="showDeleteModal = false" 
+              />
+              <ActionButton 
+                type="danger" 
+                label="Delete" 
+                @click="deleteItem" 
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -145,9 +181,15 @@
 
 <script>
 import { mapGetters, mapActions } from 'vuex'
+import DataTable from '@/components/DataTable.vue'
+import ActionButton from '@/components/ActionButton.vue'
 
 export default {
   name: 'InventoryManager',
+  components: {
+    DataTable,
+    ActionButton
+  },
   data() {
     return {
       showModal: false,
@@ -165,15 +207,42 @@ export default {
         type: '',
         name: '',
         lowStock: false
-      }
+      },
+      tableColumns: [
+        { key: 'catalogItemName', label: 'Item Name' },
+        { key: 'catalogItemType', label: 'Type' },
+        { key: 'manufacturer', label: 'Manufacturer' },
+        { key: 'quantity', label: 'Quantity' },
+        { key: 'minimumQuantity', label: 'Min. Quantity' },
+        { key: 'status', label: 'Status' },
+        { key: 'lastUpdated', label: 'Last Updated' }
+      ]
     }
   },
   computed: {
     ...mapGetters([
       'getAllCatalogItems',
       'getCurrentGroup',
-      'getCurrentGroupInventory'
+      'getCurrentGroupInventory',
+      'isAdmin',
+      'getUserRoles',
+      'getManufacturers'
     ]),
+    canManageInventory() {
+      // Admin users can always manage inventory
+      if (this.isAdmin) {
+        return true;
+      }
+      
+      // Check if the user has a role with canManageInventory permission
+      const currentUser = this.$store.state.user;
+      if (currentUser && currentUser.roleId) {
+        const userRole = this.getUserRoles.find(role => role.id === currentUser.roleId);
+        return userRole && userRole.canManageInventory;
+      }
+      
+      return false;
+    },
     catalogItems() {
       return this.getAllCatalogItems
     },
@@ -225,6 +294,21 @@ export default {
       if (item.quantity <= 0) return 'status-out'
       if (item.quantity < item.minimumQuantity) return 'status-low'
       return 'status-ok'
+    },
+    getManufacturerName(item) {
+      // Skip for services as they don't have manufacturers
+      if (item.catalogItemType === 'Service') return '';
+      
+      // Find the catalog item
+      const catalogItem = this.catalogItems.find(ci => ci.id === item.catalogItemId);
+      if (!catalogItem || !catalogItem.manufacturerId) return 'N/A';
+      
+      // Find the manufacturer
+      const manufacturer = this.getManufacturers.find(m => m.id === catalogItem.manufacturerId);
+      return manufacturer ? manufacturer.name : 'N/A';
+    },
+    getRowClass(item) {
+      return item.quantity < item.minimumQuantity ? 'low-stock' : ''
     },
     openAddModal() {
       if (!this.currentGroup) {
@@ -348,6 +432,23 @@ export default {
   min-width: 200px;
 }
 
+.checkbox-group {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 8px;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-container input[type="checkbox"] {
+  width: auto;
+  margin-right: 5px;
+}
+
 /* Table Styles */
 .table-responsive {
   overflow-x: auto;
@@ -382,36 +483,6 @@ export default {
   white-space: nowrap;
   display: flex;
   gap: 8px;
-}
-
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-edit {
-  background-color: #08c;
-  color: white;
-}
-
-.btn-delete {
-  background-color: #dc3545;
-  color: white;
-}
-
-.btn-edit:hover {
-  background-color: #0077b3;
-}
-
-.btn-delete:hover {
-  background-color: #c82333;
 }
 
 .low-stock {
@@ -455,6 +526,82 @@ export default {
   width: auto;
   margin: 1.75rem auto;
   max-width: 500px;
+}
+
+.inventory-modal {
+  background-color: #fff;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.confirmation-modal {
+  width: 400px;
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-control:focus {
+  border-color: #08c;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 136, 204, 0.2);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
 }
 
 .ml-2 {

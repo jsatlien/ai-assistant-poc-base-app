@@ -22,6 +22,7 @@
           <tr>
             <th>SKU</th>
             <th>Name</th>
+            <th>Manufacturer</th>
             <th>Device</th>
             <th>Description</th>
             <th>Actions</th>
@@ -31,6 +32,7 @@
           <tr v-for="part in filteredParts" :key="part.id">
             <td>{{ part.sku }}</td>
             <td>{{ part.name }}</td>
+            <td>{{ getManufacturerName(part.manufacturerId) }}</td>
             <td>{{ getDeviceName(part.deviceId) }}</td>
             <td>{{ part.description }}</td>
             <td class="actions-cell">
@@ -75,6 +77,20 @@
               placeholder="Enter part name"
               class="form-control"
             />
+          </div>
+          <div class="form-group">
+            <label for="partManufacturer">Manufacturer <span class="required">*</span></label>
+            <select 
+              id="partManufacturer" 
+              v-model="currentPart.manufacturerId" 
+              class="form-control"
+              required
+            >
+              <option value="" disabled>Select a manufacturer</option>
+              <option v-for="manufacturer in manufacturers" :key="manufacturer.id" :value="manufacturer.id">
+                {{ manufacturer.name }}
+              </option>
+            </select>
           </div>
           <div class="form-group">
             <label for="partDevice">Device (Optional)</label>
@@ -124,14 +140,16 @@ export default {
         name: '',
         description: '',
         sku: '',
-        deviceId: null
+        deviceId: null,
+        manufacturerId: ''
       }
     };
   },
   computed: {
     ...mapGetters({
       parts: 'getParts',
-      devices: 'getDevices'
+      devices: 'getDevices',
+      manufacturers: 'getManufacturers'
     }),
     filteredParts() {
       if (!this.searchQuery) {
@@ -148,6 +166,11 @@ export default {
     }
   },
   methods: {
+    getManufacturerName(manufacturerId) {
+      if (!manufacturerId) return 'N/A';
+      const manufacturer = this.manufacturers.find(m => m.id === manufacturerId);
+      return manufacturer ? manufacturer.name : 'N/A';
+    },
     getDeviceName(deviceId) {
       if (!deviceId) return 'Not device-specific';
       const device = this.devices.find(d => d.id === deviceId);
@@ -204,6 +227,8 @@ export default {
     this.$store.dispatch('fetchParts');
     // Fetch devices for the dropdown
     this.$store.dispatch('fetchDevices');
+    // Fetch manufacturers for the dropdown
+    this.$store.dispatch('fetchManufacturers');
   }
 };
 </script>

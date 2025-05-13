@@ -24,6 +24,7 @@
           </div>
         </div>
         <router-link to="/workorders" class="nav-link">Work Orders</router-link>
+        <router-link to="/inventory" class="nav-link">Inventory</router-link>
         <div class="dropdown">
           <button class="nav-link dropdown-toggle">Repair Workflows</button>
           <div class="dropdown-menu">
@@ -39,7 +40,6 @@
             <router-link to="/admin/user-roles" class="dropdown-item">User Roles</router-link>
             <router-link to="/admin/groups" class="dropdown-item">Groups</router-link>
             <router-link to="/admin/catalog-pricing" class="dropdown-item">Catalog Pricing</router-link>
-            <router-link to="/admin/inventory" class="dropdown-item">Inventory</router-link>
           </div>
         </div>
       </nav>

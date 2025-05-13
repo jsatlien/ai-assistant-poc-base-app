@@ -136,10 +136,10 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
-    path: '/admin/inventory',
+    path: '/inventory',
     name: 'Inventory',
     component: () => import('../Pages/Administration/Inventory.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true }
   },
   // Programs routes
   {

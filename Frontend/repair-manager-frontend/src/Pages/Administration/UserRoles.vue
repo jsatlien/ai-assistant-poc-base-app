@@ -32,7 +32,8 @@
               <div class="permissions-list">
                 <span v-if="role.isAdmin" class="permission admin">Admin</span>
                 <span v-if="role.isReadOnly" class="permission readonly">Read-only</span>
-                <span v-if="!role.isAdmin && !role.isReadOnly" class="permission standard">Standard</span>
+                <span v-if="role.canManageInventory" class="permission inventory">Inventory</span>
+                <span v-if="!role.isAdmin && !role.isReadOnly && !role.canManageInventory" class="permission standard">Standard</span>
               </div>
             </td>
             <td>
@@ -88,6 +89,7 @@
                     type="checkbox" 
                     id="isAdmin" 
                     v-model="currentRole.isAdmin"
+                    @change="handleAdminChange"
                   />
                   <label for="isAdmin">Administrator (Full access to all features)</label>
                 </div>
@@ -99,6 +101,15 @@
                     :disabled="currentRole.isAdmin"
                   />
                   <label for="isReadOnly">Read-only (View-only access)</label>
+                </div>
+                <div class="checkbox-item">
+                  <input 
+                    type="checkbox" 
+                    id="canManageInventory" 
+                    v-model="currentRole.canManageInventory"
+                    :disabled="currentRole.isAdmin"
+                  />
+                  <label for="canManageInventory">Allow Manage Inventory</label>
                 </div>
               </div>
             </div>
@@ -145,7 +156,8 @@ export default {
         name: '',
         description: '',
         isAdmin: false,
-        isReadOnly: false
+        isReadOnly: false,
+        canManageInventory: false
       },
       roleToDelete: null
     }
@@ -168,18 +180,36 @@ export default {
     this.$store.dispatch('fetchUserRoles')
   },
   methods: {
+    handleAdminChange() {
+      if (this.currentRole.isAdmin) {
+        // If admin is checked, set all other permissions to false but keep them disabled
+        this.currentRole.isReadOnly = false;
+        this.currentRole.canManageInventory = false;
+      }
+    },
     openRoleModal(role = null) {
-      this.isEditing = !!role
-      this.currentRole = role 
-        ? JSON.parse(JSON.stringify(role)) // Deep copy to avoid reference issues
-        : {
-            id: null,
-            name: '',
-            description: '',
-            isAdmin: false,
-            isReadOnly: false
-          }
       this.showRoleModal = true
+      if (role) {
+        this.isEditing = true
+        this.currentRole = {
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          isAdmin: role.isAdmin,
+          isReadOnly: role.isReadOnly,
+          canManageInventory: role.canManageInventory || false
+        }
+      } else {
+        this.isEditing = false
+        this.currentRole = {
+          id: null,
+          name: '',
+          description: '',
+          isAdmin: false,
+          isReadOnly: false,
+          canManageInventory: false
+        }
+      }
     },
     closeRoleModal() {
       this.showRoleModal = false
@@ -188,7 +218,8 @@ export default {
         name: '',
         description: '',
         isAdmin: false,
-        isReadOnly: false
+        isReadOnly: false,
+        canManageInventory: false
       }
     },
     async saveRole() {
@@ -352,6 +383,11 @@ h1 {
 .permission.standard {
   background-color: #d4edda;
   color: #155724;
+}
+
+.permission.inventory {
+  background-color: #fff3cd;
+  color: #856404;
 }
 
 .permissions-group {

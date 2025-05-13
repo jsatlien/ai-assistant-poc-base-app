@@ -16,6 +16,7 @@ export default new Vuex.Store({
     serviceParts: [], // Mapping between services and parts
     // Work orders
     workOrders: [],
+    workOrderCounter: 0, // Counter for generating work order codes
     // Workflows
     workflows: [],
     // Programs
@@ -59,6 +60,10 @@ export default new Vuex.Store({
     // Work order getters
     getWorkOrders: state => state.workOrders,
     getWorkOrderById: state => id => state.workOrders.find(wo => wo.id === id),
+    getWorkOrdersByGroup: state => groupId => {
+      if (groupId === 'all') return state.workOrders;
+      return state.workOrders.filter(wo => wo.groupId === groupId);
+    },
     // Workflow getters
     getWorkflows: state => state.workflows,
     getWorkflowById: state => id => state.workflows.find(w => w.id === id),
@@ -225,6 +230,9 @@ export default new Vuex.Store({
     },
     DELETE_WORK_ORDER(state, workOrderId) {
       state.workOrders = state.workOrders.filter(w => w.id !== workOrderId)
+    },
+    SET_WORK_ORDER_COUNTER(state, counter) {
+      state.workOrderCounter = counter
     },
     // Workflow mutations
     SET_WORKFLOWS(state, workflows) {
@@ -814,6 +822,7 @@ export default new Vuex.Store({
         const sampleWorkOrders = [
           { 
             id: 1, 
+            code: 'WO00001',
             customerName: 'John Smith', 
             customerPhone: '555-123-4567',
             deviceId: 1,
@@ -822,11 +831,13 @@ export default new Vuex.Store({
             serviceName: 'Screen Replacement',
             issueDescription: 'Cracked screen after dropping phone',
             status: 'in-progress',
+            groupId: 1, // Main Repair Center
             createdAt: '2025-05-10T14:30:00Z',
             updatedAt: '2025-05-11T09:15:00Z'
           },
           { 
             id: 2, 
+            code: 'WO00002',
             customerName: 'Sarah Johnson', 
             customerPhone: '555-987-6543',
             deviceId: 2,
@@ -835,11 +846,13 @@ export default new Vuex.Store({
             serviceName: 'Battery Replacement',
             issueDescription: 'Battery drains very quickly, needs replacement',
             status: 'open',
+            groupId: 1, // Main Repair Center
             createdAt: '2025-05-11T16:45:00Z',
             updatedAt: null
           },
           { 
             id: 3, 
+            code: 'WO00003',
             customerName: 'Michael Brown', 
             customerPhone: '555-456-7890',
             deviceId: 4,
@@ -848,11 +861,13 @@ export default new Vuex.Store({
             serviceName: 'Software Troubleshooting',
             issueDescription: 'System crashes frequently when using video editing software',
             status: 'completed',
+            groupId: 2, // West Coast Repair Center
             createdAt: '2025-05-09T10:15:00Z',
             updatedAt: '2025-05-12T11:30:00Z'
           },
           { 
             id: 4, 
+            code: 'WO00004',
             customerName: 'Emily Davis', 
             customerPhone: '555-789-0123',
             deviceId: 3,
@@ -861,33 +876,70 @@ export default new Vuex.Store({
             serviceName: 'Water Damage Repair',
             issueDescription: 'Device was dropped in water, not turning on',
             status: 'cancelled',
+            groupId: 3, // Southern Repair Center
             createdAt: '2025-05-08T09:00:00Z',
             updatedAt: '2025-05-08T14:20:00Z'
           }
         ]
         commit('SET_WORK_ORDERS', sampleWorkOrders)
+        // Set the work order counter to the highest ID
+        commit('SET_WORK_ORDER_COUNTER', 4)
       }
     },
-    async addWorkOrder({ commit }, workOrder) {
+    async addWorkOrder({ commit, state }, workOrder) {
       try {
+        // Generate a new work order code
+        const counter = state.workOrderCounter + 1
+        const code = `WO${counter.toString().padStart(5, '0')}`
+        
+        // Set the group ID to the current group if not provided
+        const groupId = workOrder.groupId || (state.currentGroup ? state.currentGroup.id : 1)
+        
+        // Add device and service names for display
+        const device = state.devices.find(d => d.id === workOrder.deviceId);
+        const service = state.services.find(s => s.id === workOrder.serviceId);
+        
+        // Create the complete work order object
+        const completeWorkOrder = {
+          ...workOrder,
+          id: Date.now(), // Generate a temporary ID
+          code,
+          groupId,
+          deviceName: device ? device.name : 'Unknown Device',
+          serviceName: service ? service.name : 'Unknown Service',
+          createdAt: new Date().toISOString(),
+          updatedAt: null
+        }
+        
         // In a real app, this would call the API
-        // const response = await api.post('/workorders', workOrder)
+        // const response = await api.post('/workorders', completeWorkOrder)
         // commit('ADD_WORK_ORDER', response.data)
         
         // For demo purposes, we'll just add it directly
-        commit('ADD_WORK_ORDER', workOrder)
+        commit('ADD_WORK_ORDER', completeWorkOrder)
+        commit('SET_WORK_ORDER_COUNTER', counter)
       } catch (error) {
         console.error('Error adding work order:', error)
       }
     },
-    async updateWorkOrder({ commit }, workOrder) {
+    async updateWorkOrder({ commit, state }, workOrder) {
       try {
+        // Add device and service names for display
+        const device = state.devices.find(d => d.id === workOrder.deviceId);
+        const service = state.services.find(s => s.id === workOrder.serviceId);
+        
+        const updatedWorkOrder = {
+          ...workOrder,
+          deviceName: device ? device.name : 'Unknown Device',
+          serviceName: service ? service.name : 'Unknown Service'
+        };
+        
         // In a real app, this would call the API
-        // const response = await api.put(`/workorders/${workOrder.id}`, workOrder)
+        // const response = await api.put(`/workorders/${workOrder.id}`, updatedWorkOrder)
         // commit('UPDATE_WORK_ORDER', response.data)
         
         // For demo purposes, we'll just update it directly
-        commit('UPDATE_WORK_ORDER', workOrder)
+        commit('UPDATE_WORK_ORDER', updatedWorkOrder)
       } catch (error) {
         console.error('Error updating work order:', error)
       }

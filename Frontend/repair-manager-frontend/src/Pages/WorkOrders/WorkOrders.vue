@@ -22,6 +22,14 @@
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
+        
+        <select v-if="isAdmin" v-model="groupFilter" class="filter-select">
+          <option value="current">Current Group</option>
+          <option value="all">All Groups</option>
+          <option v-for="group in groups" :key="group.id" :value="group.id">
+            {{ group.description }}
+          </option>
+        </select>
       </div>
     </div>
 
@@ -29,10 +37,11 @@
       <table>
         <thead>
           <tr>
-            <th>ID</th>
+            <th>Code</th>
             <th>Customer</th>
             <th>Device</th>
             <th>Service</th>
+            <th>Group</th>
             <th>Status</th>
             <th>Created</th>
             <th>Actions</th>
@@ -40,10 +49,11 @@
         </thead>
         <tbody>
           <tr v-for="order in filteredWorkOrders" :key="order.id" :class="'status-' + order.status">
-            <td>{{ order.id }}</td>
+            <td><span class="work-order-code">{{ order.code }}</span></td>
             <td>{{ order.customerName }}</td>
             <td>{{ order.deviceName }}</td>
             <td>{{ order.serviceName }}</td>
+            <td>{{ getGroupName(order.groupId) }}</td>
             <td>
               <span class="status-badge" :class="'status-' + order.status">
                 {{ formatStatus(order.status) }}
@@ -95,29 +105,21 @@
           </div>
           <div class="form-group">
             <label for="deviceSelect">Device</label>
-            <select 
-              id="deviceSelect" 
+            <SearchSelect
+              :options="devices"
               v-model="currentWorkOrder.deviceId"
-              class="form-control"
-            >
-              <option value="" disabled>Select a device</option>
-              <option v-for="device in devices" :key="device.id" :value="device.id">
-                {{ device.name }}
-              </option>
-            </select>
+              placeholder="Search for a device..."
+              :searchFields="['name', 'description', 'sku']"
+            />
           </div>
           <div class="form-group">
             <label for="serviceSelect">Service</label>
-            <select 
-              id="serviceSelect" 
+            <SearchSelect
+              :options="services"
               v-model="currentWorkOrder.serviceId"
-              class="form-control"
-            >
-              <option value="" disabled>Select a service</option>
-              <option v-for="service in services" :key="service.id" :value="service.id">
-                {{ service.name }}
-              </option>
-            </select>
+              placeholder="Search for a service..."
+              :searchFields="['name', 'description', 'sku']"
+            />
           </div>
           <div class="form-group">
             <label for="issueDescription">Issue Description</label>
@@ -159,6 +161,18 @@
         </div>
         <div class="modal-body">
           <div class="work-order-details">
+            <div class="detail-section">
+              <h3>Work Order Information</h3>
+              <div class="detail-row">
+                <div class="detail-label">Code:</div>
+                <div class="detail-value"><strong>{{ currentWorkOrder.code }}</strong></div>
+              </div>
+              <div class="detail-row">
+                <div class="detail-label">Group:</div>
+                <div class="detail-value">{{ getGroupName(currentWorkOrder.groupId) }}</div>
+              </div>
+            </div>
+            
             <div class="detail-section">
               <h3>Customer Information</h3>
               <div class="detail-row">
@@ -220,26 +234,31 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import SearchSelect from '@/components/SearchSelect.vue';
 
 export default {
+  components: {
+    SearchSelect
+  },
   name: 'WorkOrders',
   data() {
     return {
       searchQuery: '',
       statusFilter: 'all',
+      groupFilter: 'current',
       showAddWorkOrderModal: false,
       showEditWorkOrderModal: false,
       showViewWorkOrderModal: false,
       currentWorkOrder: {
         id: null,
+        code: '',
         customerName: '',
         customerPhone: '',
         deviceId: '',
-        deviceName: '',
         serviceId: '',
-        serviceName: '',
         issueDescription: '',
         status: 'open',
+        groupId: null,
         createdAt: null,
         updatedAt: null
       }
@@ -248,11 +267,32 @@ export default {
   computed: {
     ...mapGetters({
       workOrders: 'getWorkOrders',
+      workOrdersByGroup: 'getWorkOrdersByGroup',
       devices: 'getDevices',
-      services: 'getServices'
+      services: 'getServices',
+      groups: 'getGroups',
+      currentGroup: 'getCurrentGroup',
+      isAdmin: 'isAdmin'
     }),
     filteredWorkOrders() {
-      let filtered = this.workOrders;
+      // First, filter by group
+      let filtered;
+      if (this.isAdmin) {
+        if (this.groupFilter === 'all') {
+          filtered = this.workOrders;
+        } else if (this.groupFilter === 'current') {
+          filtered = this.currentGroup ? 
+            this.workOrdersByGroup(this.currentGroup.id) : 
+            this.workOrders;
+        } else {
+          filtered = this.workOrdersByGroup(this.groupFilter);
+        }
+      } else {
+        // Non-admin users can only see work orders for their current group
+        filtered = this.currentGroup ? 
+          this.workOrdersByGroup(this.currentGroup.id) : 
+          this.workOrders;
+      }
       
       // Apply status filter
       if (this.statusFilter !== 'all') {
@@ -263,10 +303,10 @@ export default {
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase();
         filtered = filtered.filter(order => 
-          order.customerName.toLowerCase().includes(query) || 
+          (order.code && order.code.toLowerCase().includes(query)) ||
+          order.customerName.toLowerCase().includes(query) ||
           order.deviceName.toLowerCase().includes(query) ||
-          order.serviceName.toLowerCase().includes(query) ||
-          order.issueDescription.toLowerCase().includes(query)
+          order.serviceName.toLowerCase().includes(query)
         );
       }
       
@@ -275,18 +315,13 @@ export default {
   },
   methods: {
     formatStatus(status) {
-      switch (status) {
-        case 'open':
-          return 'Open';
-        case 'in-progress':
-          return 'In Progress';
-        case 'completed':
-          return 'Completed';
-        case 'cancelled':
-          return 'Cancelled';
-        default:
-          return status;
-      }
+      const statusMap = {
+        'open': 'Open',
+        'in-progress': 'In Progress',
+        'completed': 'Completed',
+        'cancelled': 'Cancelled'
+      };
+      return statusMap[status] || status;
     },
     formatDate(dateString) {
       if (!dateString) return '';
@@ -300,6 +335,11 @@ export default {
     getServiceName(serviceId) {
       const service = this.services.find(s => s.id === serviceId);
       return service ? service.name : 'Unknown Service';
+    },
+    getGroupName(groupId) {
+      if (!groupId) return 'N/A';
+      const group = this.groups.find(g => g.id === groupId);
+      return group ? group.description : 'Unknown';
     },
     viewWorkOrder(order) {
       this.currentWorkOrder = { ...order };
@@ -325,14 +365,14 @@ export default {
     resetCurrentWorkOrder() {
       this.currentWorkOrder = {
         id: null,
+        code: '',
         customerName: '',
         customerPhone: '',
         deviceId: '',
-        deviceName: '',
         serviceId: '',
-        serviceName: '',
         issueDescription: '',
         status: 'open',
+        groupId: this.currentGroup ? this.currentGroup.id : null,
         createdAt: null,
         updatedAt: null
       };
@@ -363,20 +403,13 @@ export default {
         // Update existing work order
         const updatedWorkOrder = {
           ...this.currentWorkOrder,
-          updatedAt: new Date().toISOString(),
-          deviceName: this.getDeviceName(this.currentWorkOrder.deviceId),
-          serviceName: this.getServiceName(this.currentWorkOrder.serviceId)
+          updatedAt: new Date().toISOString()
         };
         this.$store.dispatch('updateWorkOrder', updatedWorkOrder);
       } else {
         // Add new work order
         const newWorkOrder = {
-          ...this.currentWorkOrder,
-          id: Date.now(), // Temporary ID for demo
-          createdAt: new Date().toISOString(),
-          updatedAt: null,
-          deviceName: this.getDeviceName(this.currentWorkOrder.deviceId),
-          serviceName: this.getServiceName(this.currentWorkOrder.serviceId)
+          ...this.currentWorkOrder
         };
         this.$store.dispatch('addWorkOrder', newWorkOrder);
       }
@@ -385,10 +418,16 @@ export default {
     }
   },
   created() {
-    // Fetch work orders, devices, and services when component is created
+    // Fetch work orders, devices, services, and groups when component is created
     this.$store.dispatch('fetchWorkOrders');
     this.$store.dispatch('fetchDevices');
     this.$store.dispatch('fetchServices');
+    this.$store.dispatch('fetchGroups');
+    
+    // Set the current group ID in the new work order form
+    if (this.currentGroup) {
+      this.currentWorkOrder.groupId = this.currentGroup.id;
+    }
   }
 };
 </script>
@@ -437,6 +476,12 @@ export default {
   font-size: 1rem;
   background-color: #fff;
   min-width: 150px;
+  margin-left: 0.5rem;
+}
+
+.filter-options {
+  display: flex;
+  align-items: center;
 }
 
 .work-orders-table {
@@ -487,6 +532,16 @@ tr:hover td {
   font-weight: 500;
 }
 
+.work-order-code {
+  font-family: monospace;
+  font-weight: 600;
+  color: #08c;
+  background-color: rgba(0, 136, 204, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
 .status-open {
   background-color: #e3f2fd;
   color: #0277bd;
@@ -523,6 +578,19 @@ tr:hover td {
 /* Modal Styles */
 .work-order-modal {
   max-width: 700px;
+  width: 90%;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
 }
 
 .work-order-details {

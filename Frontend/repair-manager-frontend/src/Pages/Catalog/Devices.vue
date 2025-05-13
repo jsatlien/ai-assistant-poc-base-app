@@ -22,6 +22,7 @@
           <tr>
             <th>SKU</th>
             <th>Name</th>
+            <th>Manufacturer</th>
             <th>Description</th>
             <th>Actions</th>
           </tr>
@@ -30,6 +31,7 @@
           <tr v-for="device in filteredDevices" :key="device.id">
             <td>{{ device.sku }}</td>
             <td>{{ device.name }}</td>
+            <td>{{ getManufacturerName(device.manufacturerId) }}</td>
             <td>{{ device.description }}</td>
             <td class="actions-cell">
               <button class="btn-edit" @click="editDevice(device)">Edit</button>
@@ -75,6 +77,20 @@
             />
           </div>
           <div class="form-group">
+            <label for="deviceManufacturer">Manufacturer <span class="required">*</span></label>
+            <select 
+              id="deviceManufacturer" 
+              v-model="currentDevice.manufacturerId" 
+              class="form-control"
+              required
+            >
+              <option value="" disabled>Select a manufacturer</option>
+              <option v-for="manufacturer in manufacturers" :key="manufacturer.id" :value="manufacturer.id">
+                {{ manufacturer.name }}
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
             <label for="deviceDescription">Description</label>
             <textarea 
               id="deviceDescription" 
@@ -108,13 +124,15 @@ export default {
         id: null,
         name: '',
         description: '',
-        sku: ''
+        sku: '',
+        manufacturerId: ''
       }
     };
   },
   computed: {
     ...mapGetters({
-      devices: 'getDevices'
+      devices: 'getDevices',
+      manufacturers: 'getManufacturers'
     }),
     filteredDevices() {
       if (!this.searchQuery) {
@@ -130,6 +148,11 @@ export default {
     }
   },
   methods: {
+    getManufacturerName(manufacturerId) {
+      if (!manufacturerId) return 'N/A';
+      const manufacturer = this.manufacturers.find(m => m.id === manufacturerId);
+      return manufacturer ? manufacturer.name : 'N/A';
+    },
     editDevice(device) {
       this.currentDevice = { ...device };
       this.showEditDeviceModal = true;
@@ -178,6 +201,8 @@ export default {
   created() {
     // Fetch devices when component is created
     this.$store.dispatch('fetchDevices');
+    // Fetch manufacturers for the dropdown
+    this.$store.dispatch('fetchManufacturers');
   }
 };
 </script>

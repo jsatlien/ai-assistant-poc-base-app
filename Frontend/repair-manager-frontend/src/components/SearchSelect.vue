@@ -1,0 +1,181 @@
+<template>
+  <div class="search-select">
+    <input
+      type="text"
+      :placeholder="placeholder"
+      v-model="searchQuery"
+      class="search-input"
+      @focus="showDropdown = true"
+      @blur="onBlur"
+    />
+    <div class="dropdown-container" v-if="showDropdown && filteredOptions.length > 0">
+      <div 
+        v-for="option in filteredOptions" 
+        :key="option.id" 
+        class="dropdown-item"
+        @mousedown="selectOption(option)"
+        :class="{ 'selected': modelValue === option.id }"
+      >
+        {{ option.name }}
+        <span v-if="option.description" class="item-description">{{ option.description }}</span>
+      </div>
+    </div>
+    <div class="dropdown-container empty" v-else-if="showDropdown">
+      <div class="dropdown-item empty">No matching options found</div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'SearchSelect',
+  props: {
+    options: {
+      type: Array,
+      required: true
+    },
+    modelValue: {
+      type: [String, Number],
+      default: ''
+    },
+    placeholder: {
+      type: String,
+      default: 'Search...'
+    },
+    searchFields: {
+      type: Array,
+      default: () => ['name']
+    }
+  },
+  emits: ['update:modelValue'],
+  data() {
+    return {
+      searchQuery: '',
+      showDropdown: false
+    }
+  },
+  computed: {
+    filteredOptions() {
+      if (!this.searchQuery) {
+        return this.options;
+      }
+      
+      const query = this.searchQuery.toLowerCase();
+      return this.options.filter(option => {
+        return this.searchFields.some(field => {
+          const value = option[field];
+          return value && value.toString().toLowerCase().includes(query);
+        });
+      });
+    },
+    selectedOption() {
+      return this.options.find(option => option.id === this.modelValue);
+    }
+  },
+  watch: {
+    modelValue: {
+      immediate: true,
+      handler(newValue) {
+        if (newValue && !this.searchQuery) {
+          const selected = this.options.find(option => option.id === newValue);
+          if (selected) {
+            this.searchQuery = selected.name;
+          }
+        }
+      }
+    }
+  },
+  methods: {
+    selectOption(option) {
+      this.searchQuery = option.name;
+      this.$emit('update:modelValue', option.id);
+      this.showDropdown = false;
+    },
+    onBlur() {
+      // Delay hiding dropdown to allow click to register
+      setTimeout(() => {
+        this.showDropdown = false;
+        
+        // If no valid option is selected, reset the search query
+        if (this.modelValue) {
+          const selected = this.options.find(option => option.id === this.modelValue);
+          if (selected) {
+            this.searchQuery = selected.name;
+          }
+        } else if (this.searchQuery) {
+          this.searchQuery = '';
+        }
+      }, 200);
+    }
+  }
+}
+</script>
+
+<style scoped>
+.search-select {
+  position: relative;
+  width: 100%;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: #fff;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #08c;
+  box-shadow: 0 0 0 2px rgba(0, 136, 204, 0.2);
+}
+
+.dropdown-container {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 250px;
+  overflow-y: auto;
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  margin-top: 2px;
+}
+
+.dropdown-item {
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-item.selected {
+  background-color: rgba(0, 136, 204, 0.1);
+}
+
+.dropdown-item.empty {
+  color: #999;
+  font-style: italic;
+  cursor: default;
+}
+
+.item-description {
+  display: block;
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+</style>
