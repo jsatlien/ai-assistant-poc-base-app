@@ -1,0 +1,18 @@
+<template>
+  <div class="new-work-order-page">
+    <h1>Create New Work Order</h1>
+    <p>This page will contain a form to create a new work order.</p>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'NewWorkOrder'
+}
+</script>
+
+<style scoped>
+.new-work-order-page {
+  padding: 2rem;
+}
+</style>

@@ -1,0 +1,32 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
+
+namespace RepairManagerApi.Models
+{
+    public class RepairWorkflow
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [StringLength(100)]
+        public string Name { get; set; }
+        
+        // Store statuses as a JSON array in the database
+        [Required]
+        public string StatusesJson { get; set; } = "[]";
+        
+        // Non-mapped property for easier access in code
+        [NotMapped]
+        public List<string> Statuses 
+        { 
+            get => string.IsNullOrEmpty(StatusesJson) 
+                ? new List<string>() 
+                : System.Text.Json.JsonSerializer.Deserialize<List<string>>(StatusesJson);
+            set => StatusesJson = System.Text.Json.JsonSerializer.Serialize(value);
+        }
+    }
+}

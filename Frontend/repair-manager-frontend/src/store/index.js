@@ -1,0 +1,920 @@
+import Vue from 'vue'
+import Vuex from 'vuex'
+import api from '../services/api'
+
+Vue.use(Vuex)
+
+export default new Vuex.Store({
+  state: {
+    // Catalog items
+    devices: [],
+    serviceCategories: [],
+    productCategories: [],
+    manufacturers: [],
+    services: [],
+    parts: [],
+    serviceParts: [], // Mapping between services and parts
+    // Work orders
+    workOrders: [],
+    // Workflows
+    workflows: [],
+    // Programs
+    programs: [],
+    // Authentication
+    user: null,
+    isAuthenticated: false
+  },
+  getters: {
+    // Catalog getters
+    getDevices: state => state.devices,
+    getServiceCategories: state => state.serviceCategories,
+    getServices: state => state.services,
+    getParts: state => state.parts,
+    getProductCategories: state => state.productCategories,
+    getManufacturers: state => state.manufacturers,
+    getAllCatalogItems: state => {
+      const devices = state.devices.map(device => ({ ...device, type: 'Device' }));
+      const services = state.services.map(service => ({ ...service, type: 'Service' }));
+      const parts = state.parts.map(part => ({ ...part, type: 'Part' }));
+      return [...devices, ...services, ...parts];
+    },
+    getServiceParts: state => serviceId => {
+      return state.serviceParts
+        .filter(sp => sp.serviceId === serviceId)
+        .map(sp => state.parts.find(part => part.id === sp.partId));
+    },
+    getCompatibleParts: state => service => {
+      // Get parts that are either not linked to any device or linked to the same device as the service
+      return state.parts.filter(part => 
+        part.deviceId === null || part.deviceId === service.deviceId
+      );
+    },
+    // Work order getters
+    getWorkOrders: state => state.workOrders,
+    getWorkOrderById: state => id => state.workOrders.find(wo => wo.id === id),
+    // Workflow getters
+    getWorkflows: state => state.workflows,
+    getWorkflowById: state => id => state.workflows.find(w => w.id === id),
+    // Program getters
+    getPrograms: state => state.programs,
+    getProgramById: state => id => state.programs.find(p => p.id === id),
+    // Auth getters
+    isAuthenticated: state => state.isAuthenticated,
+    currentUser: state => state.user
+  },
+  mutations: {
+    // Catalog mutations
+    SET_DEVICES(state, devices) {
+      state.devices = devices
+    },
+    ADD_DEVICE(state, device) {
+      state.devices.push(device)
+    },
+    UPDATE_DEVICE(state, updatedDevice) {
+      const index = state.devices.findIndex(d => d.id === updatedDevice.id)
+      if (index !== -1) {
+        state.devices.splice(index, 1, updatedDevice)
+      }
+    },
+    DELETE_DEVICE(state, deviceId) {
+      state.devices = state.devices.filter(d => d.id !== deviceId)
+    },
+    SET_SERVICE_CATEGORIES(state, categories) {
+      state.serviceCategories = categories
+    },
+    ADD_SERVICE_CATEGORY(state, category) {
+      state.serviceCategories.push(category)
+    },
+    UPDATE_SERVICE_CATEGORY(state, updatedCategory) {
+      const index = state.serviceCategories.findIndex(c => c.id === updatedCategory.id)
+      if (index !== -1) {
+        state.serviceCategories.splice(index, 1, updatedCategory)
+      }
+    },
+    DELETE_SERVICE_CATEGORY(state, categoryId) {
+      state.serviceCategories = state.serviceCategories.filter(c => c.id !== categoryId)
+    },
+    SET_PRODUCT_CATEGORIES(state, categories) {
+      state.productCategories = categories
+    },
+    ADD_PRODUCT_CATEGORY(state, category) {
+      state.productCategories.push(category)
+    },
+    UPDATE_PRODUCT_CATEGORY(state, updatedCategory) {
+      const index = state.productCategories.findIndex(c => c.id === updatedCategory.id)
+      if (index !== -1) {
+        state.productCategories.splice(index, 1, updatedCategory)
+      }
+    },
+    DELETE_PRODUCT_CATEGORY(state, categoryId) {
+      state.productCategories = state.productCategories.filter(c => c.id !== categoryId)
+    },
+    SET_MANUFACTURERS(state, manufacturers) {
+      state.manufacturers = manufacturers
+    },
+    ADD_MANUFACTURER(state, manufacturer) {
+      state.manufacturers.push(manufacturer)
+    },
+    UPDATE_MANUFACTURER(state, updatedManufacturer) {
+      const index = state.manufacturers.findIndex(m => m.id === updatedManufacturer.id)
+      if (index !== -1) {
+        state.manufacturers.splice(index, 1, updatedManufacturer)
+      }
+    },
+    DELETE_MANUFACTURER(state, manufacturerId) {
+      state.manufacturers = state.manufacturers.filter(m => m.id !== manufacturerId)
+    },
+    SET_SERVICES(state, services) {
+      state.services = services
+    },
+    ADD_SERVICE(state, service) {
+      state.services.push(service)
+    },
+    UPDATE_SERVICE(state, updatedService) {
+      const index = state.services.findIndex(s => s.id === updatedService.id)
+      if (index !== -1) {
+        state.services.splice(index, 1, updatedService)
+      }
+    },
+    DELETE_SERVICE(state, serviceId) {
+      state.services = state.services.filter(s => s.id !== serviceId)
+    },
+    SET_PARTS(state, parts) {
+      state.parts = parts
+    },
+    ADD_PART(state, part) {
+      state.parts.push(part)
+    },
+    UPDATE_PART(state, updatedPart) {
+      const index = state.parts.findIndex(p => p.id === updatedPart.id)
+      if (index !== -1) {
+        state.parts.splice(index, 1, updatedPart)
+      }
+    },
+    DELETE_PART(state, partId) {
+      state.parts = state.parts.filter(p => p.id !== partId)
+      // Also remove any service-part relationships for this part
+      state.serviceParts = state.serviceParts.filter(sp => sp.partId !== partId)
+    },
+    SET_SERVICE_PARTS(state, serviceParts) {
+      state.serviceParts = serviceParts
+    },
+    ADD_SERVICE_PART(state, { serviceId, partId, quantity = 1 }) {
+      // Check if this relationship already exists
+      const existing = state.serviceParts.find(
+        sp => sp.serviceId === serviceId && sp.partId === partId
+      )
+      
+      if (existing) {
+        // Update quantity if it already exists
+        existing.quantity += quantity
+      } else {
+        // Add new relationship
+        state.serviceParts.push({
+          id: Date.now(),
+          serviceId,
+          partId,
+          quantity
+        })
+      }
+    },
+    UPDATE_SERVICE_PART(state, { id, quantity }) {
+      const servicePart = state.serviceParts.find(sp => sp.id === id)
+      if (servicePart) {
+        servicePart.quantity = quantity
+      }
+    },
+    REMOVE_SERVICE_PART(state, id) {
+      state.serviceParts = state.serviceParts.filter(sp => sp.id !== id)
+    },
+    // Work order mutations
+    SET_WORK_ORDERS(state, workOrders) {
+      state.workOrders = workOrders
+    },
+    ADD_WORK_ORDER(state, workOrder) {
+      state.workOrders.push(workOrder)
+    },
+    UPDATE_WORK_ORDER(state, updatedWorkOrder) {
+      const index = state.workOrders.findIndex(w => w.id === updatedWorkOrder.id)
+      if (index !== -1) {
+        state.workOrders.splice(index, 1, updatedWorkOrder)
+      }
+    },
+    DELETE_WORK_ORDER(state, workOrderId) {
+      state.workOrders = state.workOrders.filter(w => w.id !== workOrderId)
+    },
+    // Workflow mutations
+    SET_WORKFLOWS(state, workflows) {
+      state.workflows = workflows
+    },
+    ADD_WORKFLOW(state, workflow) {
+      state.workflows.push(workflow)
+    },
+    UPDATE_WORKFLOW(state, updatedWorkflow) {
+      const index = state.workflows.findIndex(w => w.id === updatedWorkflow.id)
+      if (index !== -1) {
+        state.workflows.splice(index, 1, updatedWorkflow)
+      }
+    },
+    // Program mutations
+    SET_PROGRAMS(state, programs) {
+      state.programs = programs
+    },
+    ADD_PROGRAM(state, program) {
+      state.programs.push(program)
+    },
+    UPDATE_PROGRAM(state, updatedProgram) {
+      const index = state.programs.findIndex(p => p.id === updatedProgram.id)
+      if (index !== -1) {
+        state.programs.splice(index, 1, updatedProgram)
+      }
+    },
+    // Auth mutations
+    SET_USER(state, user) {
+      state.user = user
+    },
+    SET_AUTH(state, { user, isAuthenticated }) {
+      state.user = user
+      state.isAuthenticated = isAuthenticated
+    },
+    LOGOUT(state) {
+      state.user = null
+      state.isAuthenticated = false
+    }
+  },
+  actions: {
+    // Catalog actions
+    async fetchDevices({ commit }) {
+      try {
+        const response = await api.get('/catalog/devices')
+        commit('SET_DEVICES', response.data)
+      } catch (error) {
+        console.error('Error fetching devices:', error)
+        // For demo purposes, load some sample devices if API fails
+        const sampleDevices = [
+          { id: 1, name: 'iPhone 13', description: 'Apple smartphone with 6.1-inch display', sku: 'DEV-APL-001' },
+          { id: 2, name: 'Samsung Galaxy S21', description: 'Android smartphone with 6.2-inch display', sku: 'DEV-SMS-001' },
+          { id: 3, name: 'iPad Pro', description: '12.9-inch tablet with M1 chip', sku: 'DEV-APL-002' },
+          { id: 4, name: 'MacBook Air', description: '13-inch laptop with Apple M1 chip', sku: 'DEV-APL-003' },
+          { id: 5, name: 'Dell XPS 13', description: '13-inch Windows laptop with Intel Core i7', sku: 'DEV-DEL-001' }
+        ]
+        commit('SET_DEVICES', sampleDevices)
+      }
+    },
+    async addDevice({ commit }, device) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.post('/catalog/devices', device)
+        // commit('ADD_DEVICE', response.data)
+        
+        // For demo purposes, we'll just add it directly
+        commit('ADD_DEVICE', device)
+      } catch (error) {
+        console.error('Error adding device:', error)
+      }
+    },
+    async updateDevice({ commit }, device) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.put(`/catalog/devices/${device.id}`, device)
+        // commit('UPDATE_DEVICE', response.data)
+        
+        // For demo purposes, we'll just update it directly
+        commit('UPDATE_DEVICE', device)
+      } catch (error) {
+        console.error('Error updating device:', error)
+      }
+    },
+    async deleteDevice({ commit }, deviceId) {
+      try {
+        // In a real app, this would call the API
+        // await api.delete(`/catalog/devices/${deviceId}`)
+        
+        // For demo purposes, we'll just delete it directly
+        commit('DELETE_DEVICE', deviceId)
+      } catch (error) {
+        console.error('Error deleting device:', error)
+      }
+    },
+    async fetchServiceCategories({ commit }) {
+      try {
+        const response = await api.get('/service-categories')
+        commit('SET_SERVICE_CATEGORIES', response.data)
+      } catch (error) {
+        console.error('Error fetching service categories:', error)
+        // Fallback to sample data if API fails
+        const sampleCategories = [
+          { id: 1, name: 'Screen Repairs', description: 'Services for screen replacements and repairs' },
+          { id: 2, name: 'Battery Services', description: 'Battery replacement and optimization services' },
+          { id: 3, name: 'Water Damage', description: 'Water damage assessment and repair services' },
+          { id: 4, name: 'Hardware Repairs', description: 'Hardware component repair and replacement' },
+          { id: 5, name: 'Data Services', description: 'Data recovery and transfer services' }
+        ]
+        commit('SET_SERVICE_CATEGORIES', sampleCategories)
+      }
+    },
+    async fetchProductCategories({ commit }) {
+      try {
+        const response = await api.get('/product-categories')
+        commit('SET_PRODUCT_CATEGORIES', response.data)
+      } catch (error) {
+        console.error('Error fetching product categories:', error)
+        // Fallback to sample data if API fails
+        const sampleProductCategories = [
+          { id: 1, name: 'Smartphones', description: 'Mobile phones with advanced computing capability' },
+          { id: 2, name: 'Tablets', description: 'Portable touchscreen computers' },
+          { id: 3, name: 'Laptops', description: 'Portable personal computers' },
+          { id: 4, name: 'Desktops', description: 'Personal computers designed for regular use at a single location' },
+          { id: 5, name: 'Wearables', description: 'Smart electronic devices that can be worn on the body' }
+        ]
+        commit('SET_PRODUCT_CATEGORIES', sampleProductCategories)
+      }
+    },
+    async fetchManufacturers({ commit }) {
+      try {
+        const response = await api.get('/manufacturers')
+        commit('SET_MANUFACTURERS', response.data)
+      } catch (error) {
+        console.error('Error fetching manufacturers:', error)
+        // Fallback to sample data if API fails
+        const sampleManufacturers = [
+          { id: 1, name: 'Apple', description: 'Manufacturer of iPhone, iPad, and Mac computers' },
+          { id: 2, name: 'Samsung', description: 'Manufacturer of Galaxy smartphones and tablets' },
+          { id: 3, name: 'Google', description: 'Manufacturer of Pixel smartphones and other devices' },
+          { id: 4, name: 'Microsoft', description: 'Manufacturer of Surface devices and Xbox consoles' },
+          { id: 5, name: 'Dell', description: 'Manufacturer of laptops, desktops, and servers' },
+          { id: 6, name: 'HP', description: 'Manufacturer of laptops, desktops, and printers' },
+          { id: 7, name: 'Lenovo', description: 'Manufacturer of ThinkPad laptops and other devices' }
+        ]
+        commit('SET_MANUFACTURERS', sampleManufacturers)
+      }
+    },
+    async addServiceCategory({ commit }, category) {
+      try {
+        // In a real app, this would call the API
+        const response = await api.post('/service-categories', category)
+        commit('ADD_SERVICE_CATEGORY', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error adding service category:', error)
+        // For demo, we'll just add it to the store with a generated ID
+        const newCategory = {
+          ...category,
+          id: Date.now()
+        }
+        commit('ADD_SERVICE_CATEGORY', newCategory)
+        return newCategory
+      }
+    },
+    async updateServiceCategory({ commit }, category) {
+      try {
+        const response = await api.put(`/service-categories/${category.id}`, category)
+        commit('UPDATE_SERVICE_CATEGORY', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error updating service category:', error)
+        // For demo, we'll just update it in the store
+        commit('UPDATE_SERVICE_CATEGORY', category)
+        return category
+      }
+    },
+    async deleteServiceCategory({ commit }, categoryId) {
+      try {
+        await api.delete(`/service-categories/${categoryId}`)
+        commit('DELETE_SERVICE_CATEGORY', categoryId)
+        return true
+      } catch (error) {
+        console.error('Error deleting service category:', error)
+        // For demo, we'll just delete it from the store
+        commit('DELETE_SERVICE_CATEGORY', categoryId)
+        return true
+      }
+    },
+    async addProductCategory({ commit }, category) {
+      try {
+        // In a real app, this would call the API
+        const response = await api.post('/product-categories', category)
+        commit('ADD_PRODUCT_CATEGORY', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error adding product category:', error)
+        // For demo, we'll just add it to the store with a generated ID
+        const newCategory = {
+          ...category,
+          id: Date.now()
+        }
+        commit('ADD_PRODUCT_CATEGORY', newCategory)
+        return newCategory
+      }
+    },
+    async updateProductCategory({ commit }, category) {
+      try {
+        const response = await api.put(`/product-categories/${category.id}`, category)
+        commit('UPDATE_PRODUCT_CATEGORY', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error updating product category:', error)
+        // For demo, we'll just update it in the store
+        commit('UPDATE_PRODUCT_CATEGORY', category)
+        return category
+      }
+    },
+    async deleteProductCategory({ commit }, categoryId) {
+      try {
+        await api.delete(`/product-categories/${categoryId}`)
+        commit('DELETE_PRODUCT_CATEGORY', categoryId)
+        return true
+      } catch (error) {
+        console.error('Error deleting product category:', error)
+        // For demo, we'll just delete it from the store
+        commit('DELETE_PRODUCT_CATEGORY', categoryId)
+        return true
+      }
+    },
+    async addManufacturer({ commit }, manufacturer) {
+      try {
+        // In a real app, this would call the API
+        const response = await api.post('/manufacturers', manufacturer)
+        commit('ADD_MANUFACTURER', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error adding manufacturer:', error)
+        // For demo, we'll just add it to the store with a generated ID
+        const newManufacturer = {
+          ...manufacturer,
+          id: Date.now()
+        }
+        commit('ADD_MANUFACTURER', newManufacturer)
+        return newManufacturer
+      }
+    },
+    async updateManufacturer({ commit }, manufacturer) {
+      try {
+        const response = await api.put(`/manufacturers/${manufacturer.id}`, manufacturer)
+        commit('UPDATE_MANUFACTURER', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error updating manufacturer:', error)
+        // For demo, we'll just update it in the store
+        commit('UPDATE_MANUFACTURER', manufacturer)
+        return manufacturer
+      }
+    },
+    async deleteManufacturer({ commit }, manufacturerId) {
+      try {
+        await api.delete(`/manufacturers/${manufacturerId}`)
+        commit('DELETE_MANUFACTURER', manufacturerId)
+        return true
+      } catch (error) {
+        console.error('Error deleting manufacturer:', error)
+        // For demo, we'll just delete it from the store
+        commit('DELETE_MANUFACTURER', manufacturerId)
+        return true
+      }
+    },
+    async fetchServices({ commit }) {
+      try {
+        const response = await api.get('/catalog/services')
+        commit('SET_SERVICES', response.data)
+      } catch (error) {
+        console.error('Error fetching services:', error)
+        // For demo purposes, load some sample services if API fails
+        const sampleServices = [
+          { 
+            id: 1, 
+            name: 'iPhone Screen Replacement', 
+            description: 'Replace damaged screens for iPhone devices',
+            categoryId: 1, // Screen Repairs
+            deviceId: 1, // iPhone 13
+            sku: 'SRV-SCR-001'
+          },
+          { 
+            id: 2, 
+            name: 'Samsung Screen Replacement', 
+            description: 'Replace damaged screens for Samsung devices',
+            categoryId: 1, // Screen Repairs
+            deviceId: 2, // Samsung Galaxy S21
+            sku: 'SRV-SCR-002'
+          },
+          { 
+            id: 3, 
+            name: 'Battery Replacement - All Phones', 
+            description: 'Replace old or damaged batteries for all phone types',
+            categoryId: 2, // Battery Services
+            deviceId: null, // Not device-specific
+            sku: 'SRV-BAT-001'
+          },
+          { 
+            id: 4, 
+            name: 'Water Damage Assessment', 
+            description: 'Initial assessment of water-damaged devices',
+            categoryId: 3, // Water Damage
+            deviceId: null, // Not device-specific
+            sku: 'SRV-WTR-001'
+          },
+          { 
+            id: 5, 
+            name: 'Data Recovery Service', 
+            description: 'Recover lost or deleted data from damaged devices',
+            categoryId: 5, // Data Services
+            deviceId: null, // Not device-specific
+            sku: 'SRV-DAT-001'
+          }
+        ]
+        commit('SET_SERVICES', sampleServices)
+      }
+    },
+    async addService({ commit }, service) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.post('/catalog/services', service)
+        // commit('ADD_SERVICE', response.data)
+        
+        // For demo purposes, we'll just add it directly
+        commit('ADD_SERVICE', service)
+      } catch (error) {
+        console.error('Error adding service:', error)
+      }
+    },
+    async updateService({ commit }, service) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.put(`/catalog/services/${service.id}`, service)
+        // commit('UPDATE_SERVICE', response.data)
+        
+        // For demo purposes, we'll just update it directly
+        commit('UPDATE_SERVICE', service)
+      } catch (error) {
+        console.error('Error updating service:', error)
+      }
+    },
+    async deleteService({ commit }, serviceId) {
+      try {
+        // In a real app, this would call the API
+        // await api.delete(`/catalog/services/${serviceId}`)
+        
+        // For demo purposes, we'll just delete it directly
+        commit('DELETE_SERVICE', serviceId)
+      } catch (error) {
+        console.error('Error deleting service:', error)
+      }
+    },
+    async fetchPrograms({ commit }) {
+      try {
+        const response = await api.get('/programs')
+        commit('SET_PROGRAMS', response.data)
+      } catch (error) {
+        console.error('Error fetching programs:', error)
+        // For demo purposes, load some sample programs if API fails
+        const samplePrograms = [
+          { 
+            id: 1, 
+            name: 'Standard Repair', 
+            description: 'Standard repair program for most devices', 
+            workflowId: 1,
+            warrantyType: 'ALL',
+            eligibleDevices: {
+              type: 'ALL',
+              productCategories: []
+            },
+            pricingMode: 'Itemized'
+          },
+          { 
+            id: 2, 
+            name: 'Express Repair', 
+            description: 'Expedited repair program with faster turnaround', 
+            workflowId: 2,
+            warrantyType: 'IW',
+            eligibleDevices: {
+              type: 'SELECTED',
+              productCategories: [1, 2]
+            },
+            pricingMode: 'Service Levels'
+          },
+          { 
+            id: 3, 
+            name: 'Advanced Repair', 
+            description: 'Advanced repair program for complex issues', 
+            workflowId: 3,
+            warrantyType: 'OOW',
+            eligibleDevices: {
+              type: 'SELECTED',
+              productCategories: [3, 4]
+            },
+            pricingMode: 'Itemized'
+          }
+        ]
+        commit('SET_PROGRAMS', samplePrograms)
+      }
+    },
+    async fetchServiceParts({ commit }) {
+      try {
+        const response = await api.get('/catalog/service-parts')
+        commit('SET_SERVICE_PARTS', response.data)
+      } catch (error) {
+        console.error('Error fetching service parts:', error)
+        // For demo purposes, load some sample service-part relationships if API fails
+        const sampleServiceParts = [
+          { id: 1, serviceId: 1, partId: 1, quantity: 1 }, // iPhone Screen Replacement needs iPhone 13 Screen
+          { id: 2, serviceId: 2, partId: 2, quantity: 1 }, // Samsung Screen Replacement needs Samsung Galaxy S21 Screen
+          { id: 3, serviceId: 3, partId: 3, quantity: 1 }, // Battery Replacement - All Phones needs iPhone Battery
+          { id: 4, serviceId: 3, partId: 4, quantity: 1 }, // Battery Replacement - All Phones needs Samsung Battery
+          { id: 5, serviceId: 4, partId: 5, quantity: 1 }  // Water Damage Assessment needs Charging Port
+        ]
+        commit('SET_SERVICE_PARTS', sampleServiceParts)
+      }
+    },
+    async addServicePart({ commit }, { serviceId, partId, quantity }) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.post('/catalog/service-parts', { serviceId, partId, quantity })
+        // commit('ADD_SERVICE_PART', response.data)
+        
+        // For demo purposes, we'll just add it directly
+        commit('ADD_SERVICE_PART', { serviceId, partId, quantity })
+      } catch (error) {
+        console.error('Error adding service part:', error)
+      }
+    },
+    async updateServicePart({ commit }, { id, quantity }) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.put(`/catalog/service-parts/${id}`, { quantity })
+        // commit('UPDATE_SERVICE_PART', response.data)
+        
+        // For demo purposes, we'll just update it directly
+        commit('UPDATE_SERVICE_PART', { id, quantity })
+      } catch (error) {
+        console.error('Error updating service part:', error)
+      }
+    },
+    async removeServicePart({ commit }, id) {
+      try {
+        // In a real app, this would call the API
+        // await api.delete(`/catalog/service-parts/${id}`)
+        
+        // For demo purposes, we'll just delete it directly
+        commit('REMOVE_SERVICE_PART', id)
+      } catch (error) {
+        console.error('Error removing service part:', error)
+      }
+    },
+    async addPart({ commit }, part) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.post('/catalog/parts', part)
+        // commit('ADD_PART', response.data)
+        
+        // For demo purposes, we'll just add it directly
+        commit('ADD_PART', part)
+      } catch (error) {
+        console.error('Error adding part:', error)
+      }
+    },
+    async updatePart({ commit }, part) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.put(`/catalog/parts/${part.id}`, part)
+        // commit('UPDATE_PART', response.data)
+        
+        // For demo purposes, we'll just update it directly
+        commit('UPDATE_PART', part)
+      } catch (error) {
+        console.error('Error updating part:', error)
+      }
+    },
+    async deletePart({ commit }, partId) {
+      try {
+        // In a real app, this would call the API
+        // await api.delete(`/catalog/parts/${partId}`)
+        
+        // For demo purposes, we'll just delete it directly
+        commit('DELETE_PART', partId)
+      } catch (error) {
+        console.error('Error deleting part:', error)
+      }
+    },
+    // Work order actions
+    async fetchWorkOrders({ commit }) {
+      try {
+        const response = await api.get('/workorders')
+        commit('SET_WORK_ORDERS', response.data)
+      } catch (error) {
+        console.error('Error fetching work orders:', error)
+        // For demo purposes, load some sample work orders if API fails
+        const sampleWorkOrders = [
+          { 
+            id: 1, 
+            customerName: 'John Smith', 
+            customerPhone: '555-123-4567',
+            deviceId: 1,
+            deviceName: 'iPhone 13',
+            serviceId: 1,
+            serviceName: 'Screen Replacement',
+            issueDescription: 'Cracked screen after dropping phone',
+            status: 'in-progress',
+            createdAt: '2025-05-10T14:30:00Z',
+            updatedAt: '2025-05-11T09:15:00Z'
+          },
+          { 
+            id: 2, 
+            customerName: 'Sarah Johnson', 
+            customerPhone: '555-987-6543',
+            deviceId: 2,
+            deviceName: 'Samsung Galaxy S21',
+            serviceId: 2,
+            serviceName: 'Battery Replacement',
+            issueDescription: 'Battery drains very quickly, needs replacement',
+            status: 'open',
+            createdAt: '2025-05-11T16:45:00Z',
+            updatedAt: null
+          },
+          { 
+            id: 3, 
+            customerName: 'Michael Brown', 
+            customerPhone: '555-456-7890',
+            deviceId: 4,
+            deviceName: 'MacBook Air',
+            serviceId: 4,
+            serviceName: 'Software Troubleshooting',
+            issueDescription: 'System crashes frequently when using video editing software',
+            status: 'completed',
+            createdAt: '2025-05-09T10:15:00Z',
+            updatedAt: '2025-05-12T11:30:00Z'
+          },
+          { 
+            id: 4, 
+            customerName: 'Emily Davis', 
+            customerPhone: '555-789-0123',
+            deviceId: 3,
+            deviceName: 'iPad Pro',
+            serviceId: 3,
+            serviceName: 'Water Damage Repair',
+            issueDescription: 'Device was dropped in water, not turning on',
+            status: 'cancelled',
+            createdAt: '2025-05-08T09:00:00Z',
+            updatedAt: '2025-05-08T14:20:00Z'
+          }
+        ]
+        commit('SET_WORK_ORDERS', sampleWorkOrders)
+      }
+    },
+    async addWorkOrder({ commit }, workOrder) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.post('/workorders', workOrder)
+        // commit('ADD_WORK_ORDER', response.data)
+        
+        // For demo purposes, we'll just add it directly
+        commit('ADD_WORK_ORDER', workOrder)
+      } catch (error) {
+        console.error('Error adding work order:', error)
+      }
+    },
+    async updateWorkOrder({ commit }, workOrder) {
+      try {
+        // In a real app, this would call the API
+        // const response = await api.put(`/workorders/${workOrder.id}`, workOrder)
+        // commit('UPDATE_WORK_ORDER', response.data)
+        
+        // For demo purposes, we'll just update it directly
+        commit('UPDATE_WORK_ORDER', workOrder)
+      } catch (error) {
+        console.error('Error updating work order:', error)
+      }
+    },
+    async deleteWorkOrder({ commit }, workOrderId) {
+      try {
+        // In a real app, this would call the API
+        // await api.delete(`/workorders/${workOrderId}`)
+        
+        // For demo purposes, we'll just delete it directly
+        commit('DELETE_WORK_ORDER', workOrderId)
+      } catch (error) {
+        console.error('Error deleting work order:', error)
+      }
+    },
+    async fetchWorkOrder(context, id) {
+      try {
+        const response = await api.get(`/workorders/${id}`)
+        return response.data
+      } catch (error) {
+        console.error(`Error fetching work order ${id}:`, error)
+      }
+    },
+    async createWorkOrder({ commit }, workOrder) {
+      try {
+        const response = await api.post('/workorders', workOrder)
+        commit('ADD_WORK_ORDER', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating work order:', error)
+      }
+    },
+
+    // Workflow actions
+    async fetchWorkflows({ commit }) {
+      try {
+        const response = await api.get('/workflows')
+        commit('SET_WORKFLOWS', response.data)
+      } catch (error) {
+        console.error('Error fetching workflows:', error)
+      }
+    },
+    async fetchWorkflow(context, id) {
+      try {
+        const response = await api.get(`/workflows/${id}`)
+        return response.data
+      } catch (error) {
+        console.error(`Error fetching workflow ${id}:`, error)
+      }
+    },
+    async createWorkflow({ commit }, workflow) {
+      try {
+        const response = await api.post('/workflows', workflow)
+        commit('ADD_WORKFLOW', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating workflow:', error)
+      }
+    },
+    async updateWorkflow({ commit }, { id, workflow }) {
+      try {
+        const response = await api.put(`/workflows/${id}`, workflow)
+        commit('UPDATE_WORKFLOW', response.data)
+        return response.data
+      } catch (error) {
+        console.error(`Error updating workflow ${id}:`, error)
+      }
+    },
+    // Program actions
+
+    async fetchProgram(context, id) {
+      try {
+        const response = await api.get(`/programs/${id}`)
+        return response.data
+      } catch (error) {
+        console.error(`Error fetching program ${id}:`, error)
+      }
+    },
+    async createProgram({ commit }, program) {
+      try {
+        const response = await api.post('/programs', program)
+        commit('ADD_PROGRAM', response.data)
+        return response.data
+      } catch (error) {
+        console.error('Error creating program:', error)
+      }
+    },
+    async updateProgram({ commit }, { id, program }) {
+      try {
+        const response = await api.put(`/programs/${id}`, program)
+        commit('UPDATE_PROGRAM', response.data)
+        return response.data
+      } catch (error) {
+        console.error(`Error updating program ${id}:`, error)
+      }
+    },
+    // Auth actions
+    async login({ commit }, credentials) {
+      try {
+        const response = await api.post('/auth/login', credentials)
+        const { user, token } = response.data
+        
+        // Store token in localStorage
+        localStorage.setItem('auth_token', token)
+        
+        // Set default Authorization header for all future requests
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        
+        commit('SET_AUTH', { user, isAuthenticated: true })
+        return user
+      } catch (error) {
+        console.error('Login error:', error)
+        throw error
+      }
+    },
+    logout({ commit }) {
+      // Remove token from localStorage
+      localStorage.removeItem('auth_token')
+      
+      // Remove Authorization header
+      delete api.defaults.headers.common['Authorization']
+      
+      commit('SET_AUTH', { user: null, isAuthenticated: false })
+    },
+    checkAuth({ commit }) {
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        // Set default Authorization header
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        
+        // For simplicity, we're just setting isAuthenticated to true
+        // In a real app, you'd verify the token with the server
+        commit('SET_AUTH', { user: { name: 'Admin User' }, isAuthenticated: true })
+        return true
+      }
+      return false
+    }
+  }
+})

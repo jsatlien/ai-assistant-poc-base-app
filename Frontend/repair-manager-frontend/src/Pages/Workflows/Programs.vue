@@ -1,0 +1,784 @@
+<template>
+  <div class="programs-page">
+    <h1>Repair Programs</h1>
+    <div class="page-actions">
+      <button class="btn-primary" @click="openProgramModal()">Add Program</button>
+      <div class="search-container">
+        <input type="text" v-model="searchQuery" placeholder="Search programs..." class="search-input" />
+      </div>
+    </div>
+
+    <div v-if="filteredPrograms.length > 0" class="table-container">
+      <table class="data-table">
+        <colgroup>
+          <col style="width: 15%">
+          <col style="width: 20%">
+          <col style="width: 13%">
+          <col style="width: 13%">
+          <col style="width: 13%">
+          <col style="width: 26%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Workflow</th>
+            <th>Warranty Type</th>
+            <th>Pricing Mode</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="program in filteredPrograms" :key="program.id">
+            <td>{{ program.name }}</td>
+            <td>{{ program.description }}</td>
+            <td>{{ getWorkflowName(program.workflowId) }}</td>
+            <td>{{ program.warrantyType }}</td>
+            <td>{{ program.pricingMode }}</td>
+            <td>
+              <div class="actions-cell">
+                <button class="btn-view" @click="viewProgram(program)">View</button>
+                <button class="btn-edit" @click="editProgram(program)">Edit</button>
+                <button class="btn-delete" @click="confirmDeleteProgram(program)">Delete</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-else class="empty-state">
+      <p>No programs found. Add your first program to get started.</p>
+    </div>
+
+    <!-- Program Modal -->
+    <div v-if="showProgramModal" class="modal">
+      <div class="modal-content program-modal">
+        <div class="modal-header">
+          <h2>{{ isEditing ? 'Edit Program' : 'Add Program' }}</h2>
+          <button class="close-btn" @click="closeProgramModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="saveProgram">
+            <div class="form-group">
+              <label for="programName">Name</label>
+              <input 
+                id="programName" 
+                v-model="currentProgram.name" 
+                class="form-control"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="programDescription">Description</label>
+              <textarea 
+                id="programDescription" 
+                v-model="currentProgram.description" 
+                class="form-control"
+                rows="3"
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <label for="programWorkflow">Workflow</label>
+              <select 
+                id="programWorkflow" 
+                v-model="currentProgram.workflowId" 
+                class="form-control"
+                required
+              >
+                <option value="">Select a workflow</option>
+                <option v-for="workflow in workflows" :key="workflow.id" :value="workflow.id">
+                  {{ workflow.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="programWarrantyType">Warranty Type</label>
+              <select 
+                id="programWarrantyType" 
+                v-model="currentProgram.warrantyType" 
+                class="form-control"
+                required
+              >
+                <option value="IW">In Warranty (IW)</option>
+                <option value="OOW">Out of Warranty (OOW)</option>
+                <option value="ALL">All Warranty Types</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="programEligibleDevices">Eligible Devices</label>
+              <div class="radio-group">
+                <div class="radio-item">
+                  <input 
+                    type="radio" 
+                    id="allDevices" 
+                    value="ALL" 
+                    v-model="currentProgram.eligibleDevices.type"
+                  />
+                  <label for="allDevices">All Devices</label>
+                </div>
+                <div class="radio-item">
+                  <input 
+                    type="radio" 
+                    id="selectedCategories" 
+                    value="SELECTED" 
+                    v-model="currentProgram.eligibleDevices.type"
+                  />
+                  <label for="selectedCategories">Selected Product Categories</label>
+                </div>
+              </div>
+              <div v-if="currentProgram.eligibleDevices.type === 'SELECTED'" class="category-select">
+                <label>Select Product Categories</label>
+                <div class="category-checkboxes">
+                  <div v-for="category in productCategories" :key="category.id" class="checkbox-item">
+                    <input 
+                      type="checkbox" 
+                      :id="'category-' + category.id" 
+                      :value="category.id" 
+                      v-model="currentProgram.eligibleDevices.productCategories"
+                    />
+                    <label :for="'category-' + category.id">{{ category.name }}</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="programPricingMode">Pricing Mode</label>
+              <select 
+                id="programPricingMode" 
+                v-model="currentProgram.pricingMode" 
+                class="form-control"
+                required
+              >
+                <option value="Itemized">Itemized</option>
+                <option value="Service Levels">Service Levels</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" @click="closeProgramModal">Cancel</button>
+              <button type="submit" class="btn-primary">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- View Program Modal -->
+    <div v-if="showViewModal" class="modal">
+      <div class="modal-content program-modal">
+        <div class="modal-header">
+          <h2>{{ currentProgram.name }}</h2>
+          <button class="close-btn" @click="closeViewModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="program-info">
+            <div class="info-row">
+              <div class="info-label">Description:</div>
+              <div class="info-value">{{ currentProgram.description }}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Workflow:</div>
+              <div class="info-value">{{ getWorkflowName(currentProgram.workflowId) }}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Warranty Type:</div>
+              <div class="info-value">{{ currentProgram.warrantyType }}</div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Eligible Devices:</div>
+              <div class="info-value">
+                <template v-if="currentProgram.eligibleDevices.type === 'ALL'">
+                  All Devices
+                </template>
+                <template v-else>
+                  <div>Selected Product Categories:</div>
+                  <ul class="category-list">
+                    <li v-for="categoryId in currentProgram.eligibleDevices.productCategories" :key="categoryId">
+                      {{ getCategoryName(categoryId) }}
+                    </li>
+                  </ul>
+                </template>
+              </div>
+            </div>
+            <div class="info-row">
+              <div class="info-label">Pricing Mode:</div>
+              <div class="info-value">{{ currentProgram.pricingMode }}</div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-secondary" @click="closeViewModal">Close</button>
+            <button class="btn-primary" @click="editCurrentProgram">Edit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div v-if="showConfirmationModal" class="modal">
+      <div class="modal-content confirmation-modal">
+        <div class="modal-header">
+          <h2>Confirm Delete</h2>
+          <button class="close-btn" @click="closeConfirmationModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete the program "{{ programToDelete?.name }}"?</p>
+          <div class="form-actions">
+            <button class="btn-secondary" @click="closeConfirmationModal">Cancel</button>
+            <button class="btn-delete" @click="deleteProgram">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'WorkflowPrograms',
+  data() {
+    return {
+      searchQuery: '',
+      showProgramModal: false,
+      showViewModal: false,
+      showConfirmationModal: false,
+      isEditing: false,
+      currentProgram: {
+        id: null,
+        name: '',
+        description: '',
+        workflowId: '',
+        warrantyType: 'ALL',
+        eligibleDevices: {
+          type: 'ALL',
+          productCategories: []
+        },
+        pricingMode: 'Itemized'
+      },
+      programToDelete: null,
+      // Sample workflows for demo
+      workflows: [
+        {
+          id: 1,
+          name: 'Standard Repair Flow',
+          description: 'Standard workflow for most device repairs'
+        },
+        {
+          id: 2,
+          name: 'Express Repair Flow',
+          description: 'Expedited workflow for urgent repairs'
+        },
+        {
+          id: 3,
+          name: 'Advanced Repair Flow',
+          description: 'Workflow for complex device repairs'
+        }
+      ],
+      // Sample product categories for demo
+      productCategories: [
+        { id: 1, name: 'Smartphones', description: 'Mobile phones with advanced computing capability' },
+        { id: 2, name: 'Tablets', description: 'Portable touchscreen computers' },
+        { id: 3, name: 'Laptops', description: 'Portable personal computers' },
+        { id: 4, name: 'Desktops', description: 'Personal computers designed for regular use at a single location' },
+        { id: 5, name: 'Wearables', description: 'Smart electronic devices that can be worn on the body' }
+      ],
+      // Sample programs for demo
+      programs: [
+        { 
+          id: 1, 
+          name: 'Standard Repair', 
+          description: 'Standard repair program for most devices', 
+          workflowId: 1,
+          warrantyType: 'ALL',
+          eligibleDevices: {
+            type: 'ALL',
+            productCategories: []
+          },
+          pricingMode: 'Itemized'
+        },
+        { 
+          id: 2, 
+          name: 'Express Repair', 
+          description: 'Expedited repair program with faster turnaround', 
+          workflowId: 2,
+          warrantyType: 'IW',
+          eligibleDevices: {
+            type: 'SELECTED',
+            productCategories: [1, 2]
+          },
+          pricingMode: 'Service Levels'
+        },
+        { 
+          id: 3, 
+          name: 'Advanced Repair', 
+          description: 'Advanced repair program for complex issues', 
+          workflowId: 3,
+          warrantyType: 'OOW',
+          eligibleDevices: {
+            type: 'SELECTED',
+            productCategories: [3, 4]
+          },
+          pricingMode: 'Itemized'
+        }
+      ]
+    }
+  },
+  computed: {
+    filteredPrograms() {
+      if (!this.searchQuery) return this.programs
+      
+      const query = this.searchQuery.toLowerCase()
+      return this.programs.filter(program => 
+        program.name.toLowerCase().includes(query) || 
+        (program.description && program.description.toLowerCase().includes(query))
+      )
+    }
+  },
+  methods: {
+    openProgramModal(program = null) {
+      this.isEditing = !!program
+      this.currentProgram = program 
+        ? JSON.parse(JSON.stringify(program)) // Deep copy to avoid reference issues
+        : {
+            id: null,
+            name: '',
+            description: '',
+            workflowId: '',
+            warrantyType: 'ALL',
+            eligibleDevices: {
+              type: 'ALL',
+              productCategories: []
+            },
+            pricingMode: 'Itemized'
+          }
+      this.showProgramModal = true
+    },
+    closeProgramModal() {
+      this.showProgramModal = false
+      this.currentProgram = {
+        id: null,
+        name: '',
+        description: '',
+        workflowId: '',
+        warrantyType: 'ALL',
+        eligibleDevices: {
+          type: 'ALL',
+          productCategories: []
+        },
+        pricingMode: 'Itemized'
+      }
+    },
+    saveProgram() {
+      if (!this.currentProgram.name.trim()) {
+        alert('Program name is required')
+        return
+      }
+
+      if (!this.currentProgram.workflowId) {
+        alert('Workflow is required')
+        return
+      }
+
+      if (this.currentProgram.eligibleDevices.type === 'SELECTED' && 
+          this.currentProgram.eligibleDevices.productCategories.length === 0) {
+        alert('Please select at least one product category')
+        return
+      }
+
+      if (this.isEditing) {
+        // Update existing program
+        const index = this.programs.findIndex(p => p.id === this.currentProgram.id)
+        if (index !== -1) {
+          this.programs.splice(index, 1, this.currentProgram)
+        }
+      } else {
+        // Add new program with a generated ID
+        const newProgram = {
+          ...this.currentProgram,
+          id: Math.max(0, ...this.programs.map(p => p.id)) + 1
+        }
+        this.programs.push(newProgram)
+      }
+      
+      this.closeProgramModal()
+    },
+    viewProgram(program) {
+      this.currentProgram = JSON.parse(JSON.stringify(program)) // Deep copy
+      this.showViewModal = true
+    },
+    closeViewModal() {
+      this.showViewModal = false
+      this.currentProgram = {
+        id: null,
+        name: '',
+        description: '',
+        workflowId: '',
+        warrantyType: 'ALL',
+        eligibleDevices: {
+          type: 'ALL',
+          productCategories: []
+        },
+        pricingMode: 'Itemized'
+      }
+    },
+    editCurrentProgram() {
+      this.closeViewModal()
+      this.openProgramModal(this.currentProgram)
+    },
+    editProgram(program) {
+      this.openProgramModal(program)
+    },
+    confirmDeleteProgram(program) {
+      this.programToDelete = program
+      this.showConfirmationModal = true
+    },
+    closeConfirmationModal() {
+      this.showConfirmationModal = false
+      this.programToDelete = null
+    },
+    deleteProgram() {
+      if (!this.programToDelete) return
+      
+      const index = this.programs.findIndex(p => p.id === this.programToDelete.id)
+      if (index !== -1) {
+        this.programs.splice(index, 1)
+      }
+      
+      this.closeConfirmationModal()
+    },
+    getWorkflowName(workflowId) {
+      const workflow = this.workflows.find(w => w.id === workflowId)
+      return workflow ? workflow.name : 'Unknown'
+    },
+    getCategoryName(categoryId) {
+      const category = this.productCategories.find(c => c.id === categoryId)
+      return category ? category.name : 'Unknown'
+    }
+  }
+}
+</script>
+
+<style scoped>
+.programs-page {
+  padding: 2rem;
+}
+
+h1 {
+  margin-bottom: 1.5rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.page-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.search-container {
+  flex: 0 0 300px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.table-container {
+  margin-top: 1rem;
+  border-radius: 8px;
+  overflow: auto;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  background-color: #fff;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  padding: 1rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+  height: 72px;
+}
+
+.data-table td:first-child {
+  padding-left: 1rem;
+}
+
+.data-table td:last-child {
+  padding-right: 0.5rem;
+}
+
+.data-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #333;
+}
+
+.data-table tr:hover {
+  background-color: #f9f9f9;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.3rem;
+  white-space: nowrap;
+  height: 100%;
+  align-items: center;
+  padding: 0.3rem 0;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.empty-state {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 3rem;
+  text-align: center;
+  color: #666;
+}
+
+/* Program Specific Styles */
+.program-modal {
+  width: 2000px;
+  max-width: 90%;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.category-select {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+}
+
+.category-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.program-info {
+  margin-bottom: 1.5rem;
+}
+
+.info-row {
+  display: flex;
+  margin-bottom: 1rem;
+}
+
+.info-label {
+  font-weight: 600;
+  width: 150px;
+  color: #555;
+}
+
+.info-value {
+  flex: 1;
+}
+
+.category-list {
+  margin: 0.5rem 0 0 1rem;
+  padding-left: 1rem;
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #08c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #0077b3;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e5e5;
+}
+
+.btn-view {
+  background-color: transparent;
+  color: #17a2b8;
+  border: 1px solid #17a2b8;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.btn-view:hover {
+  background-color: #17a2b8;
+  color: #fff;
+}
+
+.btn-edit {
+  background-color: transparent;
+  color: #08c;
+  border: 1px solid #08c;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.btn-edit:hover {
+  background-color: #08c;
+  color: #fff;
+}
+
+.btn-delete {
+  background-color: transparent;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.8rem;
+}
+
+.btn-delete:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  border-radius: 8px;
+  width: 1200px;
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.confirmation-modal {
+  width: 400px;
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-control:focus {
+  border-color: #08c;
+  outline: none;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+</style>

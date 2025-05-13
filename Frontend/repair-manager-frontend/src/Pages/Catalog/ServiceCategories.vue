@@ -1,0 +1,397 @@
+<template>
+  <div class="service-categories-page">
+    <div class="page-header">
+      <h1 class="page-title">Service Categories</h1>
+      <button class="btn-primary" @click="showAddCategoryModal = true">Add Category</button>
+    </div>
+
+    <div class="search-filter">
+      <div class="search-box">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Search categories..." 
+          class="search-input"
+        />
+      </div>
+    </div>
+
+    <div v-if="filteredCategories.length > 0" class="categories-grid">
+      <div v-for="category in filteredCategories" :key="category.id" class="category-card">
+        <div class="category-header">
+          <h3 class="category-name">{{ category.name }}</h3>
+        </div>
+        <div class="category-body">
+          <p class="category-description">{{ category.description }}</p>
+        </div>
+        <div class="category-actions">
+          <button class="btn-edit" @click="editCategory(category)">Edit</button>
+          <button class="btn-delete" @click="confirmDeleteCategory(category)">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="empty-state">
+      <p v-if="searchQuery">No categories found matching your search criteria.</p>
+      <p v-else>No categories found. Add your first category to get started.</p>
+      <button class="btn-primary" @click="showAddCategoryModal = true">Add Category</button>
+    </div>
+
+    <!-- Add/Edit Category Modal -->
+    <div v-if="showAddCategoryModal || showEditCategoryModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">{{ showEditCategoryModal ? 'Edit Category' : 'Add New Category' }}</h2>
+          <button class="modal-close" @click="closeModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="categoryName">Category Name</label>
+            <input 
+              type="text" 
+              id="categoryName" 
+              v-model="currentCategory.name" 
+              placeholder="Enter category name"
+              class="form-control"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="categoryDescription">Description</label>
+            <textarea 
+              id="categoryDescription" 
+              v-model="currentCategory.description" 
+              placeholder="Enter category description"
+              class="form-control"
+              rows="4"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="closeModal">Cancel</button>
+          <button class="btn-primary" @click="saveCategory">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { mapGetters } from 'vuex';
+
+export default {
+  name: 'ServiceCategories',
+  data() {
+    return {
+      searchQuery: '',
+      showAddCategoryModal: false,
+      showEditCategoryModal: false,
+      currentCategory: {
+        id: null,
+        name: '',
+        description: ''
+      }
+    };
+  },
+  computed: {
+    ...mapGetters({
+      categories: 'getServiceCategories'
+    }),
+    filteredCategories() {
+      if (!this.searchQuery) {
+        return this.categories;
+      }
+      
+      const query = this.searchQuery.toLowerCase();
+      return this.categories.filter(category => 
+        category.name.toLowerCase().includes(query) || 
+        category.description.toLowerCase().includes(query)
+      );
+    }
+  },
+  methods: {
+    editCategory(category) {
+      this.currentCategory = { ...category };
+      this.showEditCategoryModal = true;
+    },
+    confirmDeleteCategory(category) {
+      if (confirm(`Are you sure you want to delete ${category.name}?`)) {
+        this.$store.dispatch('deleteServiceCategory', category.id);
+      }
+    },
+    closeModal() {
+      this.showAddCategoryModal = false;
+      this.showEditCategoryModal = false;
+      this.currentCategory = {
+        id: null,
+        name: '',
+        description: ''
+      };
+    },
+    saveCategory() {
+      if (!this.currentCategory.name.trim()) {
+        alert('Category name is required');
+        return;
+      }
+      
+      if (this.showEditCategoryModal) {
+        // Update existing category
+        this.$store.dispatch('updateServiceCategory', this.currentCategory);
+      } else {
+        // Add new category
+        const newCategory = {
+          ...this.currentCategory,
+          id: Date.now() // Temporary ID for demo
+        };
+        this.$store.dispatch('addServiceCategory', newCategory);
+      }
+      
+      this.closeModal();
+    }
+  },
+  created() {
+    // Fetch categories when component is created
+    this.$store.dispatch('fetchServiceCategories');
+  }
+};
+</script>
+
+<style scoped>
+.service-categories-page {
+  padding: 2rem;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.search-filter {
+  margin-bottom: 2rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.category-card {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.category-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.category-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: #08c;
+}
+
+.category-body {
+  padding: 1.5rem;
+  min-height: 100px;
+}
+
+.category-description {
+  margin: 0;
+  color: #666;
+  line-height: 1.6;
+}
+
+.category-actions {
+  padding: 1rem 1.5rem;
+  background-color: #f9f9f9;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 0;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state p {
+  margin-bottom: 1.5rem;
+  color: #666;
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #08c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #0077b3;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #e0e0e0;
+}
+
+.btn-edit {
+  background-color: transparent;
+  color: #08c;
+  border: 1px solid #08c;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-edit:hover {
+  background-color: #08c;
+  color: #fff;
+}
+
+.btn-delete {
+  background-color: transparent;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  margin-left: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-delete:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: #333;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #08c;
+  box-shadow: 0 0 0 2px rgba(0, 136, 204, 0.2);
+}
+</style>

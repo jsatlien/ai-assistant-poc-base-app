@@ -1,0 +1,584 @@
+<template>
+  <div class="work-orders-page">
+    <div class="page-header">
+      <h1 class="page-title">Work Orders</h1>
+      <router-link to="/workorders/new" class="btn-primary">Create Work Order</router-link>
+    </div>
+
+    <div class="filters-section">
+      <div class="search-box">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Search work orders..." 
+          class="search-input"
+        />
+      </div>
+      <div class="filter-controls">
+        <div class="filter-group">
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter" v-model="statusFilter" class="filter-select">
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="programFilter">Program</label>
+          <select id="programFilter" v-model="programFilter" class="filter-select">
+            <option value="">All Programs</option>
+            <option v-for="program in programs" :key="program.id" :value="program.id">
+              {{ program.name }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="work-orders-table-container">
+      <table v-if="filteredWorkOrders.length > 0" class="work-orders-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Device</th>
+            <th>Service</th>
+            <th>Program</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="order in filteredWorkOrders" :key="order.id">
+            <td class="order-id">#{{ order.id }}</td>
+            <td>{{ getDeviceName(order.deviceId) }}</td>
+            <td>{{ getServiceName(order.serviceId) }}</td>
+            <td>{{ getProgramName(order.repairProgramId) }}</td>
+            <td>
+              <span :class="['status-badge', `status-${order.currentStatus.toLowerCase().replace(' ', '')}`]">
+                {{ order.currentStatus }}
+              </span>
+            </td>
+            <td class="actions-cell">
+              <router-link :to="`/workorders/${order.id}`" class="btn-view">View</router-link>
+              <button class="btn-status" @click="showStatusModal(order)">Update Status</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div v-else class="empty-state">
+        <p v-if="searchQuery || statusFilter || programFilter">No work orders found matching your filter criteria.</p>
+        <p v-else>No work orders found. Create your first work order to get started.</p>
+        <router-link to="/workorders/new" class="btn-primary">Create Work Order</router-link>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div v-if="filteredWorkOrders.length > 0" class="pagination">
+      <button 
+        class="pagination-btn" 
+        :disabled="currentPage === 1" 
+        @click="currentPage--"
+      >
+        Previous
+      </button>
+      <span class="pagination-info">Page {{ currentPage }} of {{ totalPages }}</span>
+      <button 
+        class="pagination-btn" 
+        :disabled="currentPage === totalPages" 
+        @click="currentPage++"
+      >
+        Next
+      </button>
+    </div>
+
+    <!-- Update Status Modal -->
+    <div v-if="showUpdateStatusModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title">Update Work Order Status</h2>
+          <button class="modal-close" @click="closeStatusModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="newStatus">New Status</label>
+            <select id="newStatus" v-model="newStatus" class="form-control">
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="statusNotes">Notes (Optional)</label>
+            <textarea 
+              id="statusNotes" 
+              v-model="statusNotes" 
+              placeholder="Add notes about this status change"
+              class="form-control"
+              rows="3"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="closeStatusModal">Cancel</button>
+          <button class="btn-primary" @click="updateStatus">Update Status</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import { mapGetters } from 'vuex';
+
+export default {
+  name: 'WorkOrdersIndex',
+  data() {
+    return {
+      searchQuery: '',
+      statusFilter: '',
+      programFilter: '',
+      currentPage: 1,
+      itemsPerPage: 10,
+      showUpdateStatusModal: false,
+      selectedWorkOrder: null,
+      newStatus: '',
+      statusNotes: ''
+    };
+  },
+  computed: {
+    ...mapGetters({
+      workOrders: 'getWorkOrders',
+      devices: 'getDevices',
+      services: 'getServices',
+      programs: 'getPrograms'
+    }),
+    filteredWorkOrders() {
+      let filtered = [...this.workOrders];
+      
+      // Apply search filter
+      if (this.searchQuery) {
+        const query = this.searchQuery.toLowerCase();
+        filtered = filtered.filter(order => {
+          const device = this.getDeviceName(order.deviceId).toLowerCase();
+          const service = this.getServiceName(order.serviceId).toLowerCase();
+          const program = this.getProgramName(order.repairProgramId).toLowerCase();
+          
+          return device.includes(query) || 
+                 service.includes(query) || 
+                 program.includes(query) ||
+                 order.id.toString().includes(query);
+        });
+      }
+      
+      // Apply status filter
+      if (this.statusFilter) {
+        filtered = filtered.filter(order => order.currentStatus === this.statusFilter);
+      }
+      
+      // Apply program filter
+      if (this.programFilter) {
+        filtered = filtered.filter(order => order.repairProgramId === this.programFilter);
+      }
+      
+      // Apply pagination
+      const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+      const endIndex = startIndex + this.itemsPerPage;
+      
+      return filtered.slice(startIndex, endIndex);
+    },
+    totalItems() {
+      return this.workOrders.length;
+    },
+    totalPages() {
+      return Math.ceil(this.totalItems / this.itemsPerPage);
+    }
+  },
+  methods: {
+    getDeviceName(deviceId) {
+      const device = this.devices.find(d => d.id === deviceId);
+      return device ? device.name : 'Unknown Device';
+    },
+    getServiceName(serviceId) {
+      const service = this.services.find(s => s.id === serviceId);
+      return service ? service.name : 'Unknown Service';
+    },
+    getProgramName(programId) {
+      const program = this.programs.find(p => p.id === programId);
+      return program ? program.name : 'Unknown Program';
+    },
+    showStatusModal(workOrder) {
+      this.selectedWorkOrder = workOrder;
+      this.newStatus = workOrder.currentStatus;
+      this.statusNotes = '';
+      this.showUpdateStatusModal = true;
+    },
+    closeStatusModal() {
+      this.showUpdateStatusModal = false;
+      this.selectedWorkOrder = null;
+      this.newStatus = '';
+      this.statusNotes = '';
+    },
+    updateStatus() {
+      if (this.selectedWorkOrder && this.newStatus) {
+        // In a real app, this would call an API
+        console.log(`Updating work order ${this.selectedWorkOrder.id} status to ${this.newStatus}`);
+        console.log('Notes:', this.statusNotes);
+        
+        // this.$store.dispatch('updateWorkOrderStatus', {
+        //   id: this.selectedWorkOrder.id,
+        //   status: this.newStatus,
+        //   notes: this.statusNotes
+        // });
+      }
+      
+      this.closeStatusModal();
+    }
+  },
+  created() {
+    // Fetch data when component is created
+    this.$store.dispatch('fetchWorkOrders');
+    this.$store.dispatch('fetchDevices');
+    this.$store.dispatch('fetchServices');
+    this.$store.dispatch('fetchPrograms');
+  },
+  watch: {
+    // Reset to first page when filters change
+    searchQuery() {
+      this.currentPage = 1;
+    },
+    statusFilter() {
+      this.currentPage = 1;
+    },
+    programFilter() {
+      this.currentPage = 1;
+    }
+  }
+};
+</script>
+
+<style scoped>
+.work-orders-page {
+  padding: 2rem;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.filters-section {
+  margin-bottom: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.filter-controls {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  min-width: 150px;
+}
+
+.filter-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+  font-size: 0.875rem;
+}
+
+.filter-select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: #fff;
+}
+
+.work-orders-table-container {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.work-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.work-orders-table th,
+.work-orders-table td {
+  padding: 1rem 1.5rem;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.work-orders-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #333;
+}
+
+.work-orders-table tr:last-child td {
+  border-bottom: none;
+}
+
+.work-orders-table tr:hover {
+  background-color: #f5f5f5;
+}
+
+.order-id {
+  font-weight: 600;
+  color: #08c;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-pending {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.status-inprogress {
+  background-color: #b8daff;
+  color: #004085;
+}
+
+.status-completed {
+  background-color: #c3e6cb;
+  color: #155724;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-view {
+  background-color: transparent;
+  color: #08c;
+  border: 1px solid #08c;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.btn-view:hover {
+  background-color: #08c;
+  color: #fff;
+}
+
+.btn-status {
+  background-color: transparent;
+  color: #6c757d;
+  border: 1px solid #6c757d;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-status:hover {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.empty-state p {
+  margin-bottom: 1.5rem;
+  color: #666;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.pagination-btn {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: #e0e0e0;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  color: #666;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: #333;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1.5rem;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #08c;
+  box-shadow: 0 0 0 2px rgba(0, 136, 204, 0.2);
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: #08c;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.btn-primary:hover {
+  background-color: #0077b3;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #e0e0e0;
+}
+</style>
