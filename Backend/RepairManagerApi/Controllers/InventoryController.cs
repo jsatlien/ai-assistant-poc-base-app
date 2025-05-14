@@ -31,20 +31,28 @@ namespace RepairManagerApi.Controllers
             // Populate the CatalogItemName property based on the item type
             foreach (var item in inventoryItems)
             {
-                if (item.CatalogItemType == "Part")
+                if (item.CatalogItemType == CatalogItemType.Part && item.PartId.HasValue)
                 {
-                    var part = await _context.Parts.FindAsync(item.CatalogItemId);
+                    var part = await _context.Parts.FindAsync(item.PartId);
                     if (part != null)
                     {
                         item.CatalogItemName = part.Name;
                     }
                 }
-                else if (item.CatalogItemType == "Device")
+                else if (item.CatalogItemType == CatalogItemType.Device && item.DeviceId.HasValue)
                 {
-                    var device = await _context.Devices.FindAsync(item.CatalogItemId);
+                    var device = await _context.Devices.FindAsync(item.DeviceId);
                     if (device != null)
                     {
                         item.CatalogItemName = device.Name;
+                    }
+                }
+                else if (item.CatalogItemType == CatalogItemType.Service && item.ServiceId.HasValue)
+                {
+                    var service = await _context.Services.FindAsync(item.ServiceId);
+                    if (service != null)
+                    {
+                        item.CatalogItemName = service.Name;
                     }
                 }
             }
@@ -66,20 +74,28 @@ namespace RepairManagerApi.Controllers
             }
 
             // Populate the CatalogItemName property based on the item type
-            if (inventoryItem.CatalogItemType == "Part")
+            if (inventoryItem.CatalogItemType == CatalogItemType.Part && inventoryItem.PartId.HasValue)
             {
-                var part = await _context.Parts.FindAsync(inventoryItem.CatalogItemId);
+                var part = await _context.Parts.FindAsync(inventoryItem.PartId);
                 if (part != null)
                 {
                     inventoryItem.CatalogItemName = part.Name;
                 }
             }
-            else if (inventoryItem.CatalogItemType == "Device")
+            else if (inventoryItem.CatalogItemType == CatalogItemType.Device && inventoryItem.DeviceId.HasValue)
             {
-                var device = await _context.Devices.FindAsync(inventoryItem.CatalogItemId);
+                var device = await _context.Devices.FindAsync(inventoryItem.DeviceId);
                 if (device != null)
                 {
                     inventoryItem.CatalogItemName = device.Name;
+                }
+            }
+            else if (inventoryItem.CatalogItemType == CatalogItemType.Service && inventoryItem.ServiceId.HasValue)
+            {
+                var service = await _context.Services.FindAsync(inventoryItem.ServiceId);
+                if (service != null)
+                {
+                    inventoryItem.CatalogItemName = service.Name;
                 }
             }
 
@@ -98,20 +114,28 @@ namespace RepairManagerApi.Controllers
             // Populate the CatalogItemName property based on the item type
             foreach (var item in inventoryItems)
             {
-                if (item.CatalogItemType == "Part")
+                if (item.CatalogItemType == CatalogItemType.Part && item.PartId.HasValue)
                 {
-                    var part = await _context.Parts.FindAsync(item.CatalogItemId);
+                    var part = await _context.Parts.FindAsync(item.PartId);
                     if (part != null)
                     {
                         item.CatalogItemName = part.Name;
                     }
                 }
-                else if (item.CatalogItemType == "Device")
+                else if (item.CatalogItemType == CatalogItemType.Device && item.DeviceId.HasValue)
                 {
-                    var device = await _context.Devices.FindAsync(item.CatalogItemId);
+                    var device = await _context.Devices.FindAsync(item.DeviceId);
                     if (device != null)
                     {
                         item.CatalogItemName = device.Name;
+                    }
+                }
+                else if (item.CatalogItemType == CatalogItemType.Service && item.ServiceId.HasValue)
+                {
+                    var service = await _context.Services.FindAsync(item.ServiceId);
+                    if (service != null)
+                    {
+                        item.CatalogItemName = service.Name;
                     }
                 }
             }
@@ -123,26 +147,49 @@ namespace RepairManagerApi.Controllers
         [HttpPost]
         public async Task<ActionResult<InventoryItem>> PostInventoryItem(InventoryItem inventoryItem)
         {
-            // Validate that the catalog item exists
-            if (inventoryItem.CatalogItemType == "Part")
+            // Validate that the catalog item exists based on the item type
+            if (inventoryItem.CatalogItemType == CatalogItemType.Part)
             {
-                var part = await _context.Parts.FindAsync(inventoryItem.CatalogItemId);
+                if (!inventoryItem.PartId.HasValue)
+                {
+                    return BadRequest("PartId is required for Part item type.");
+                }
+                
+                var part = await _context.Parts.FindAsync(inventoryItem.PartId);
                 if (part == null)
                 {
                     return BadRequest("The specified part does not exist.");
                 }
             }
-            else if (inventoryItem.CatalogItemType == "Device")
+            else if (inventoryItem.CatalogItemType == CatalogItemType.Device)
             {
-                var device = await _context.Devices.FindAsync(inventoryItem.CatalogItemId);
+                if (!inventoryItem.DeviceId.HasValue)
+                {
+                    return BadRequest("DeviceId is required for Device item type.");
+                }
+                
+                var device = await _context.Devices.FindAsync(inventoryItem.DeviceId);
                 if (device == null)
                 {
                     return BadRequest("The specified device does not exist.");
                 }
             }
+            else if (inventoryItem.CatalogItemType == CatalogItemType.Service)
+            {
+                if (!inventoryItem.ServiceId.HasValue)
+                {
+                    return BadRequest("ServiceId is required for Service item type.");
+                }
+                
+                var service = await _context.Services.FindAsync(inventoryItem.ServiceId);
+                if (service == null)
+                {
+                    return BadRequest("The specified service does not exist.");
+                }
+            }
             else
             {
-                return BadRequest("Invalid catalog item type. Must be 'Part' or 'Device'.");
+                return BadRequest("Invalid catalog item type. Must be Part, Device, or Service.");
             }
 
             // Validate that the group exists
@@ -168,26 +215,49 @@ namespace RepairManagerApi.Controllers
                 return BadRequest();
             }
 
-            // Validate that the catalog item exists
-            if (inventoryItem.CatalogItemType == "Part")
+            // Validate that the catalog item exists based on the item type
+            if (inventoryItem.CatalogItemType == CatalogItemType.Part)
             {
-                var part = await _context.Parts.FindAsync(inventoryItem.CatalogItemId);
+                if (!inventoryItem.PartId.HasValue)
+                {
+                    return BadRequest("PartId is required for Part item type.");
+                }
+                
+                var part = await _context.Parts.FindAsync(inventoryItem.PartId);
                 if (part == null)
                 {
                     return BadRequest("The specified part does not exist.");
                 }
             }
-            else if (inventoryItem.CatalogItemType == "Device")
+            else if (inventoryItem.CatalogItemType == CatalogItemType.Device)
             {
-                var device = await _context.Devices.FindAsync(inventoryItem.CatalogItemId);
+                if (!inventoryItem.DeviceId.HasValue)
+                {
+                    return BadRequest("DeviceId is required for Device item type.");
+                }
+                
+                var device = await _context.Devices.FindAsync(inventoryItem.DeviceId);
                 if (device == null)
                 {
                     return BadRequest("The specified device does not exist.");
                 }
             }
+            else if (inventoryItem.CatalogItemType == CatalogItemType.Service)
+            {
+                if (!inventoryItem.ServiceId.HasValue)
+                {
+                    return BadRequest("ServiceId is required for Service item type.");
+                }
+                
+                var service = await _context.Services.FindAsync(inventoryItem.ServiceId);
+                if (service == null)
+                {
+                    return BadRequest("The specified service does not exist.");
+                }
+            }
             else
             {
-                return BadRequest("Invalid catalog item type. Must be 'Part' or 'Device'.");
+                return BadRequest("Invalid catalog item type. Must be Part, Device, or Service.");
             }
 
             // Validate that the group exists

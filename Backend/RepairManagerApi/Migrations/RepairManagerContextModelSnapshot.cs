@@ -26,6 +26,9 @@ namespace RepairManagerApi.Migrations
                     b.Property<decimal>("BasePrice")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("DeviceId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<decimal?>("DiscountAmount")
                         .HasColumnType("decimal(18,2)");
 
@@ -38,17 +41,22 @@ namespace RepairManagerApi.Migrations
                     b.Property<DateTime?>("ExpirationDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsActive")
+                    b.Property<int>("ItemType")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("ItemId")
+                    b.Property<int?>("PartId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ItemType")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<int?>("ServiceId")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("PartId");
+
+                    b.HasIndex("ServiceId");
 
                     b.ToTable("CatalogPricing");
                 });
@@ -64,7 +72,7 @@ namespace RepairManagerApi.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("ManufacturerId")
+                    b.Property<int>("ManufacturerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
@@ -76,6 +84,7 @@ namespace RepairManagerApi.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SKU")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
@@ -86,26 +95,6 @@ namespace RepairManagerApi.Migrations
                     b.HasIndex("ProductCategoryId");
 
                     b.ToTable("Devices");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Description = "Apple iPhone 13 smartphone",
-                            Name = "iPhone 13"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Description = "Samsung Galaxy S21 smartphone",
-                            Name = "Samsung Galaxy S21"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Description = "Apple MacBook Pro laptop",
-                            Name = "MacBook Pro"
-                        });
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.Group", b =>
@@ -175,12 +164,11 @@ namespace RepairManagerApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("CatalogItemId")
+                    b.Property<int>("CatalogItemType")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CatalogItemType")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<int?>("DeviceId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("GroupId")
                         .HasColumnType("INTEGER");
@@ -191,12 +179,24 @@ namespace RepairManagerApi.Migrations
                     b.Property<int>("MinimumQuantity")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("PartId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("Quantity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ServiceId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DeviceId");
+
                     b.HasIndex("GroupId");
+
+                    b.HasIndex("PartId");
+
+                    b.HasIndex("ServiceId");
 
                     b.ToTable("InventoryItems");
                 });
@@ -235,7 +235,7 @@ namespace RepairManagerApi.Migrations
                     b.Property<int?>("DeviceId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("ManufacturerId")
+                    b.Property<int>("ManufacturerId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
@@ -247,6 +247,7 @@ namespace RepairManagerApi.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("SKU")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
@@ -259,32 +260,6 @@ namespace RepairManagerApi.Migrations
                     b.HasIndex("ProductCategoryId");
 
                     b.ToTable("Parts");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "iPhone 13 Screen",
-                            SKU = "SCR-IP13"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Name = "Samsung Galaxy S21 Screen",
-                            SKU = "SCR-SGS21"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Name = "iPhone Battery",
-                            SKU = "BAT-IP"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Name = "Samsung Battery",
-                            SKU = "BAT-SG"
-                        });
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.ProductCategory", b =>
@@ -327,26 +302,6 @@ namespace RepairManagerApi.Migrations
                     b.HasIndex("RepairWorkflowId");
 
                     b.ToTable("RepairPrograms");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Standard Phone Repair",
-                            RepairWorkflowId = 1
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Name = "Express Phone Repair",
-                            RepairWorkflowId = 2
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Name = "Premium Laptop Repair",
-                            RepairWorkflowId = 1
-                        });
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.RepairWorkflow", b =>
@@ -367,20 +322,6 @@ namespace RepairManagerApi.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("RepairWorkflows");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Name = "Standard Repair Workflow",
-                            StatusesJson = "[\"Pending\",\"In Progress\",\"Quality Check\",\"Completed\"]"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Name = "Express Repair Workflow",
-                            StatusesJson = "[\"Pending\",\"In Progress\",\"Completed\"]"
-                        });
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.Service", b =>
@@ -403,6 +344,7 @@ namespace RepairManagerApi.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("SKU")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
@@ -416,26 +358,6 @@ namespace RepairManagerApi.Migrations
                     b.HasIndex("ServiceCategoryId");
 
                     b.ToTable("Services");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Description = "Replace damaged screen with a new one",
-                            Name = "Screen Replacement"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Description = "Replace old or damaged battery",
-                            Name = "Battery Replacement"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Description = "Repair water damage to device",
-                            Name = "Water Damage Repair"
-                        });
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.ServiceCategory", b =>
@@ -520,8 +442,7 @@ namespace RepairManagerApi.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<int?>("RoleId")
-                        .IsRequired()
+                    b.Property<int>("RoleId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Username")
@@ -647,37 +568,36 @@ namespace RepairManagerApi.Migrations
                     b.HasIndex("ServiceId");
 
                     b.ToTable("WorkOrders");
+                });
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Code = "WO00000",
-                            CreatedAt = new DateTime(2025, 5, 11, 20, 9, 16, 775, DateTimeKind.Utc).AddTicks(5345),
-                            CurrentStatus = "In Progress",
-                            DeviceId = 1,
-                            PartIdsJson = "[1]",
-                            RepairProgramId = 1,
-                            ServiceId = 1
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Code = "WO00000",
-                            CreatedAt = new DateTime(2025, 5, 12, 20, 9, 16, 775, DateTimeKind.Utc).AddTicks(5354),
-                            CurrentStatus = "Pending",
-                            DeviceId = 2,
-                            PartIdsJson = "[4]",
-                            RepairProgramId = 2,
-                            ServiceId = 2
-                        });
+            modelBuilder.Entity("RepairManagerApi.Models.CatalogPricing", b =>
+                {
+                    b.HasOne("RepairManagerApi.Models.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId");
+
+                    b.HasOne("RepairManagerApi.Models.Part", "Part")
+                        .WithMany()
+                        .HasForeignKey("PartId");
+
+                    b.HasOne("RepairManagerApi.Models.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId");
+
+                    b.Navigation("Device");
+
+                    b.Navigation("Part");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.Device", b =>
                 {
                     b.HasOne("RepairManagerApi.Models.Manufacturer", "Manufacturer")
                         .WithMany()
-                        .HasForeignKey("ManufacturerId");
+                        .HasForeignKey("ManufacturerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("RepairManagerApi.Models.ProductCategory", "ProductCategory")
                         .WithMany()
@@ -690,13 +610,31 @@ namespace RepairManagerApi.Migrations
 
             modelBuilder.Entity("RepairManagerApi.Models.InventoryItem", b =>
                 {
+                    b.HasOne("RepairManagerApi.Models.Device", "Device")
+                        .WithMany()
+                        .HasForeignKey("DeviceId");
+
                     b.HasOne("RepairManagerApi.Models.Group", "Group")
                         .WithMany()
                         .HasForeignKey("GroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("RepairManagerApi.Models.Part", "Part")
+                        .WithMany()
+                        .HasForeignKey("PartId");
+
+                    b.HasOne("RepairManagerApi.Models.Service", "Service")
+                        .WithMany()
+                        .HasForeignKey("ServiceId");
+
+                    b.Navigation("Device");
+
                     b.Navigation("Group");
+
+                    b.Navigation("Part");
+
+                    b.Navigation("Service");
                 });
 
             modelBuilder.Entity("RepairManagerApi.Models.Part", b =>
@@ -707,7 +645,9 @@ namespace RepairManagerApi.Migrations
 
                     b.HasOne("RepairManagerApi.Models.Manufacturer", "Manufacturer")
                         .WithMany()
-                        .HasForeignKey("ManufacturerId");
+                        .HasForeignKey("ManufacturerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("RepairManagerApi.Models.ProductCategory", "ProductCategory")
                         .WithMany()

@@ -24,7 +24,8 @@ namespace RepairManagerApi.Models
         [StringLength(100)]
         public string Email { get; set; }
         
-        public int? RoleId { get; set; }
+        [Required]
+        public int RoleId { get; set; }
         
         [ForeignKey("RoleId")]
         public UserRole Role { get; set; }

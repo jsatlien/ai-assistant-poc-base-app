@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace RepairManagerApi.Data
 {
@@ -10,126 +12,162 @@ namespace RepairManagerApi.Data
     {
         public static void SeedData(RepairManagerContext context)
         {
-            // Seed each entity type individually in the correct order based on foreign key dependencies
-            // 1. First seed entities with no foreign key dependencies
-            try { SeedUserRoles(context); } catch (Exception ex) { Console.WriteLine($"Error seeding UserRoles: {ex.Message}"); }
-            try { SeedGroups(context); } catch (Exception ex) { Console.WriteLine($"Error seeding Groups: {ex.Message}"); }
-            try { SeedServiceCategories(context); } catch (Exception ex) { Console.WriteLine($"Error seeding ServiceCategories: {ex.Message}"); }
-            try { SeedProductCategories(context); } catch (Exception ex) { Console.WriteLine($"Error seeding ProductCategories: {ex.Message}"); }
-            try { SeedManufacturers(context); } catch (Exception ex) { Console.WriteLine($"Error seeding Manufacturers: {ex.Message}"); }
-            try { SeedStatusCodes(context); } catch (Exception ex) { Console.WriteLine($"Error seeding StatusCodes: {ex.Message}"); }
+            Console.WriteLine("Starting database seeding process...");
             
-            // 2. Then seed entities that depend on the above
-            try { SeedUsers(context); } catch (Exception ex) { Console.WriteLine($"Error seeding Users: {ex.Message}"); }
-            try { SeedDevices(context); } catch (Exception ex) { Console.WriteLine($"Error seeding Devices: {ex.Message}"); }
+            // 1. Seed the Group
+            int mainGroupId = SeedMainGroup(context);
+            Console.WriteLine($"Main Group created with ID: {mainGroupId}");
             
-            // 3. Then seed entities that depend on the above
-            try { SeedParts(context); } catch (Exception ex) { Console.WriteLine($"Error seeding Parts: {ex.Message}"); }
-            try { SeedServices(context); } catch (Exception ex) { Console.WriteLine($"Error seeding Services: {ex.Message}"); }
-            try { SeedRepairWorkflows(context); } catch (Exception ex) { Console.WriteLine($"Error seeding RepairWorkflows: {ex.Message}"); }
+            // 2. Seed the Administrator role
+            int adminRoleId = SeedAdminRole(context);
+            Console.WriteLine($"Administrator role created with ID: {adminRoleId}");
             
-            // 4. Finally seed entities that depend on all the above
-            try { SeedRepairPrograms(context); } catch (Exception ex) { Console.WriteLine($"Error seeding RepairPrograms: {ex.Message}"); }
-            try { SeedWorkOrders(context); } catch (Exception ex) { Console.WriteLine($"Error seeding WorkOrders: {ex.Message}"); }
+            // 3. Seed the admin user
+            int adminUserId = SeedAdminUser(context, adminRoleId, mainGroupId);
+            Console.WriteLine($"Admin user created with ID: {adminUserId}");
+            
+            // 4. Seed manufacturers
+            SeedManufacturers(context);
+            Console.WriteLine("Manufacturers seeded successfully");
+            
+            Console.WriteLine("Database seeding completed successfully!");
         }
 
-        private static void SeedGroups(RepairManagerContext context)
+        private static int SeedMainGroup(RepairManagerContext context)
         {
-            Console.WriteLine("Starting to seed Groups table...");
+            Console.WriteLine("Creating Main Group...");
             
-            try
+            // Check if the Main group already exists
+            var existingGroup = context.Groups.FirstOrDefault(g => g.Code == "MAIN");
+            if (existingGroup != null)
             {
-                // First check if there are any groups
-                var groupCount = context.Groups.Count();
-                Console.WriteLine($"Found {groupCount} existing groups in the database.");
-                
-                // If there are groups, remove them to ensure clean seeding
-                if (groupCount > 0)
-                {
-                    Console.WriteLine("Removing existing groups...");
-                    foreach (var group in context.Groups.ToList())
-                    {
-                        context.Groups.Remove(group);
-                    }
-                    context.SaveChanges();
-                    Console.WriteLine("Existing groups removed successfully.");
-                }
-                
-                // Now add the new groups
-                Console.WriteLine("Adding new groups...");
-            {
-                var groups = new List<Group>
-                {
-                    new Group
-                    {
-                        Code = "HQ",
-                        Description = "Headquarters",
-                        Address1 = "123 Main Street",
-                        City = "New York",
-                        State = "NY",
-                        Zip = "10001",
-                        Country = "USA"
-                    },
-                    new Group
-                    {
-                        Code = "WEST",
-                        Description = "West Coast Office",
-                        Address1 = "456 Tech Blvd",
-                        City = "San Francisco",
-                        State = "CA",
-                        Zip = "94107",
-                        Country = "USA"
-                    },
-                    new Group
-                    {
-                        Code = "SOUTH",
-                        Description = "South Region Office",
-                        Address1 = "789 Palm Drive",
-                        City = "Miami",
-                        State = "FL",
-                        Zip = "33101",
-                        Country = "USA"
-                    }
-                };
-
-                context.Groups.AddRange(groups);
-                
-                // Save changes and verify the groups were added
-                var saveResult = context.SaveChanges();
-                Console.WriteLine($"Saved {saveResult} groups to the database.");
-                
-                // Verify the groups were added by counting them
-                var newGroupCount = context.Groups.Count();
-                Console.WriteLine($"After seeding, database now contains {newGroupCount} groups.");
-                
-                if (newGroupCount == 0)
-                {
-                    throw new Exception("Failed to seed groups. No groups were added to the database.");
-                }
+                Console.WriteLine($"Main Group already exists with ID: {existingGroup.Id}");
+                return existingGroup.Id;
             }
-            catch (Exception ex)
+            
+            // Create the Main group
+            var mainGroup = new Group
             {
-                Console.WriteLine($"ERROR in SeedGroups: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
-                throw; // Re-throw to ensure the error is properly handled
-            }
+                Code = "MAIN",
+                Description = "Main Organization Group",
+                Address1 = "123 Repair Street",
+                Address2 = "Suite 100",
+                Address3 = "Building A",
+                Address4 = "Floor 2",
+                City = "Chicago",
+                State = "IL",
+                Zip = "60601",
+                Country = "USA"
+            };
+            
+            context.Groups.Add(mainGroup);
+            context.SaveChanges();
+            
+            Console.WriteLine($"Main Group created with ID: {mainGroup.Id}");
+            return mainGroup.Id;
         }
 
         private static void SeedManufacturers(RepairManagerContext context)
         {
-            if (!context.Manufacturers.Any())
+            Console.WriteLine("Creating manufacturer records...");
+            
+            // Check if manufacturers already exist
+            if (context.Manufacturers.Any())
             {
-                var manufacturers = new List<Manufacturer>
-                {
-                    new Manufacturer { Name = "Apple", Description = "Consumer electronics and software" },
-                    new Manufacturer { Name = "Samsung", Description = "Electronics manufacturer" },
-                    new Manufacturer { Name = "Dell", Description = "Computer hardware manufacturer" },
-                    new Manufacturer { Name = "HP", Description = "Computer and printer manufacturer" },
-                    new Manufacturer { Name = "Lenovo", Description = "Computer manufacturer" }
-                };
+                Console.WriteLine("Manufacturers already exist in the database.");
+                return;
+            }
+            
+            // Create the 5 manufacturer records
+            var manufacturers = new List<Manufacturer>
+            {
+                new Manufacturer { Name = "Apple", Description = "Consumer electronics and software" },
+                new Manufacturer { Name = "Google", Description = "Technology and software company" },
+                new Manufacturer { Name = "Dell", Description = "Computer hardware manufacturer" },
+                new Manufacturer { Name = "Lenovo", Description = "Computer manufacturer" },
+                new Manufacturer { Name = "Samsung", Description = "Electronics manufacturer" }
+            };
 
-                context.Manufacturers.AddRange(manufacturers);
-                context.SaveChanges();
+            context.Manufacturers.AddRange(manufacturers);
+            context.SaveChanges();
+            
+            Console.WriteLine($"Added {manufacturers.Count} manufacturer records to the database.");
+        }
+        
+        private static int SeedAdminRole(RepairManagerContext context)
+        {
+            Console.WriteLine("Creating Administrator role...");
+            
+            // Check if the Administrator role already exists
+            var existingRole = context.UserRoles.FirstOrDefault(r => r.Name == "Administrator");
+            if (existingRole != null)
+            {
+                Console.WriteLine($"Administrator role already exists with ID: {existingRole.Id}");
+                return existingRole.Id;
+            }
+            
+            // Create the Administrator role with all privileges
+            var adminRole = new UserRole
+            {
+                Name = "Administrator",
+                Description = "System administrator with full access",
+                CanManageUsers = true,
+                CanManageRoles = true,
+                CanManageInventory = true,
+                CanManageCatalog = true,
+                CanCreateWorkOrders = true,
+                CanEditWorkOrders = true,
+                CanDeleteWorkOrders = true,
+                CanManagePrograms = true,
+                CanManageWorkflows = true
+            };
+            
+            context.UserRoles.Add(adminRole);
+            context.SaveChanges();
+            
+            Console.WriteLine($"Administrator role created with ID: {adminRole.Id}");
+            return adminRole.Id;
+        }
+        
+        private static int SeedAdminUser(RepairManagerContext context, int roleId, int groupId)
+        {
+            Console.WriteLine("Creating admin user...");
+            
+            // Check if the admin user already exists
+            var existingUser = context.Users.FirstOrDefault(u => u.Username == "admin");
+            if (existingUser != null)
+            {
+                Console.WriteLine($"Admin user already exists with ID: {existingUser.Id}");
+                return existingUser.Id;
+            }
+            
+            // Create the admin user
+            var adminUser = new User
+            {
+                Username = "admin",
+                PasswordHash = HashPassword("admin123"),
+                FullName = "System Administrator",
+                Email = "admin@repairmanager.com",
+                RoleId = roleId,
+                GroupId = groupId,
+                IsAdmin = true,
+                CreatedAt = DateTime.UtcNow
+            };
+            
+            context.Users.Add(adminUser);
+            context.SaveChanges();
+            
+            Console.WriteLine($"Admin user created with ID: {adminUser.Id}");
+            return adminUser.Id;
+        }
+        
+        // Helper method to hash passwords
+        private static string HashPassword(string password)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+                return BitConverter.ToString(hashedBytes).Replace("-", "").ToLower();
             }
         }
 

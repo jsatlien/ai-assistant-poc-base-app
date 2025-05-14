@@ -10,10 +10,7 @@ namespace RepairManagerApi.Models
         public int Id { get; set; }
         
         [Required]
-        public string ItemType { get; set; } // "Part", "Device", or "Service"
-        
-        [Required]
-        public int ItemId { get; set; }
+        public CatalogItemType ItemType { get; set; }
         
         [Required]
         [Column(TypeName = "decimal(18,2)")]
@@ -28,7 +25,21 @@ namespace RepairManagerApi.Models
         
         public DateTime? ExpirationDate { get; set; }
         
-        public bool IsActive { get; set; } = true;
+        // New foreign key fields
+        public int? DeviceId { get; set; }
+        
+        [ForeignKey("DeviceId")]
+        public Device? Device { get; set; }
+        
+        public int? PartId { get; set; }
+        
+        [ForeignKey("PartId")]
+        public Part? Part { get; set; }
+        
+        public int? ServiceId { get; set; }
+        
+        [ForeignKey("ServiceId")]
+        public Service? Service { get; set; }
         
         // Non-mapped property for calculated price
         [NotMapped]

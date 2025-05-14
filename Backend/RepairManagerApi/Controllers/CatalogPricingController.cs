@@ -25,7 +25,6 @@ namespace RepairManagerApi.Controllers
         public async Task<ActionResult<IEnumerable<CatalogPricing>>> GetCatalogPricing()
         {
             return await _context.CatalogPricing
-                .Where(cp => cp.IsActive)
                 .ToListAsync();
         }
 
@@ -49,12 +48,31 @@ namespace RepairManagerApi.Controllers
         {
             var now = DateTime.UtcNow;
             
-            var catalogPricing = await _context.CatalogPricing
-                .Where(cp => cp.ItemType.ToLower() == itemType.ToLower() && 
-                             cp.ItemId == itemId &&
-                             cp.IsActive &&
+            if (!Enum.TryParse<CatalogItemType>(itemType, true, out var catalogItemType))
+            {
+                return BadRequest("Invalid item type. Must be 'Part', 'Device', or 'Service'.");
+            }
+            
+            var query = _context.CatalogPricing
+                .Where(cp => cp.ItemType == catalogItemType &&
                              cp.EffectiveDate <= now &&
-                             (!cp.ExpirationDate.HasValue || cp.ExpirationDate >= now))
+                             (!cp.ExpirationDate.HasValue || cp.ExpirationDate >= now));
+                             
+            // Filter based on the specific item type
+            if (catalogItemType == CatalogItemType.Part)
+            {
+                query = query.Where(cp => cp.PartId == itemId);
+            }
+            else if (catalogItemType == CatalogItemType.Device)
+            {
+                query = query.Where(cp => cp.DeviceId == itemId);
+            }
+            else if (catalogItemType == CatalogItemType.Service)
+            {
+                query = query.Where(cp => cp.ServiceId == itemId);
+            }
+            
+            var catalogPricing = await query
                 .OrderByDescending(cp => cp.EffectiveDate)
                 .FirstOrDefaultAsync();
 
@@ -70,26 +88,41 @@ namespace RepairManagerApi.Controllers
         [HttpPost]
         public async Task<ActionResult<CatalogPricing>> PostCatalogPricing(CatalogPricing catalogPricing)
         {
-            // Validate that the item exists
-            if (catalogPricing.ItemType.ToLower() == "part")
+            // Validate that the item exists based on the item type
+            if (catalogPricing.ItemType == CatalogItemType.Part)
             {
-                var part = await _context.Parts.FindAsync(catalogPricing.ItemId);
+                if (!catalogPricing.PartId.HasValue)
+                {
+                    return BadRequest("PartId is required for Part item type.");
+                }
+                
+                var part = await _context.Parts.FindAsync(catalogPricing.PartId);
                 if (part == null)
                 {
                     return BadRequest("The specified part does not exist.");
                 }
             }
-            else if (catalogPricing.ItemType.ToLower() == "device")
+            else if (catalogPricing.ItemType == CatalogItemType.Device)
             {
-                var device = await _context.Devices.FindAsync(catalogPricing.ItemId);
+                if (!catalogPricing.DeviceId.HasValue)
+                {
+                    return BadRequest("DeviceId is required for Device item type.");
+                }
+                
+                var device = await _context.Devices.FindAsync(catalogPricing.DeviceId);
                 if (device == null)
                 {
                     return BadRequest("The specified device does not exist.");
                 }
             }
-            else if (catalogPricing.ItemType.ToLower() == "service")
+            else if (catalogPricing.ItemType == CatalogItemType.Service)
             {
-                var service = await _context.Services.FindAsync(catalogPricing.ItemId);
+                if (!catalogPricing.ServiceId.HasValue)
+                {
+                    return BadRequest("ServiceId is required for Service item type.");
+                }
+                
+                var service = await _context.Services.FindAsync(catalogPricing.ServiceId);
                 if (service == null)
                 {
                     return BadRequest("The specified service does not exist.");
@@ -97,7 +130,7 @@ namespace RepairManagerApi.Controllers
             }
             else
             {
-                return BadRequest("Invalid item type. Must be 'Part', 'Device', or 'Service'.");
+                return BadRequest("Invalid item type. Must be Part, Device, or Service.");
             }
 
             _context.CatalogPricing.Add(catalogPricing);
@@ -115,26 +148,41 @@ namespace RepairManagerApi.Controllers
                 return BadRequest();
             }
 
-            // Validate that the item exists
-            if (catalogPricing.ItemType.ToLower() == "part")
+            // Validate that the item exists based on the item type
+            if (catalogPricing.ItemType == CatalogItemType.Part)
             {
-                var part = await _context.Parts.FindAsync(catalogPricing.ItemId);
+                if (!catalogPricing.PartId.HasValue)
+                {
+                    return BadRequest("PartId is required for Part item type.");
+                }
+                
+                var part = await _context.Parts.FindAsync(catalogPricing.PartId);
                 if (part == null)
                 {
                     return BadRequest("The specified part does not exist.");
                 }
             }
-            else if (catalogPricing.ItemType.ToLower() == "device")
+            else if (catalogPricing.ItemType == CatalogItemType.Device)
             {
-                var device = await _context.Devices.FindAsync(catalogPricing.ItemId);
+                if (!catalogPricing.DeviceId.HasValue)
+                {
+                    return BadRequest("DeviceId is required for Device item type.");
+                }
+                
+                var device = await _context.Devices.FindAsync(catalogPricing.DeviceId);
                 if (device == null)
                 {
                     return BadRequest("The specified device does not exist.");
                 }
             }
-            else if (catalogPricing.ItemType.ToLower() == "service")
+            else if (catalogPricing.ItemType == CatalogItemType.Service)
             {
-                var service = await _context.Services.FindAsync(catalogPricing.ItemId);
+                if (!catalogPricing.ServiceId.HasValue)
+                {
+                    return BadRequest("ServiceId is required for Service item type.");
+                }
+                
+                var service = await _context.Services.FindAsync(catalogPricing.ServiceId);
                 if (service == null)
                 {
                     return BadRequest("The specified service does not exist.");
@@ -142,7 +190,7 @@ namespace RepairManagerApi.Controllers
             }
             else
             {
-                return BadRequest("Invalid item type. Must be 'Part', 'Device', or 'Service'.");
+                return BadRequest("Invalid item type. Must be Part, Device, or Service.");
             }
 
             _context.Entry(catalogPricing).State = EntityState.Modified;

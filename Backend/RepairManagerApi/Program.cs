@@ -98,6 +98,8 @@ try
         Console.WriteLine("Checking database tables...");
         
         // Then seed the database with initial data
+        // Temporarily disabled for migration
+        /*
         try
         {
             Console.WriteLine("Starting database seeding...");
@@ -111,6 +113,8 @@ try
             // Re-throw to ensure the application doesn't start with an improperly seeded database
             throw;
         }
+        */
+        Console.WriteLine("Database seeding temporarily disabled for migration.");
         
         Console.WriteLine("Database initialization completed successfully.");
     }

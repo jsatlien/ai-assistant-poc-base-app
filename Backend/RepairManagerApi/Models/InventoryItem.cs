@@ -16,18 +16,31 @@ namespace RepairManagerApi.Models
         public Group Group { get; set; }
         
         [Required]
-        public string CatalogItemType { get; set; } // "Part" or "Device"
-        
-        [Required]
-        public int CatalogItemId { get; set; }
+        public CatalogItemType CatalogItemType { get; set; }
         
         [Required]
         public int Quantity { get; set; }
         
         [Required]
-        public int MinimumQuantity { get; set; }
+        public int MinimumQuantity { get; set; } = 0;
         
         public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+        
+        // New foreign key fields
+        public int? DeviceId { get; set; }
+        
+        [ForeignKey("DeviceId")]
+        public Device? Device { get; set; }
+        
+        public int? PartId { get; set; }
+        
+        [ForeignKey("PartId")]
+        public Part? Part { get; set; }
+        
+        public int? ServiceId { get; set; }
+        
+        [ForeignKey("ServiceId")]
+        public Service? Service { get; set; }
         
         // Non-mapped properties for UI display
         [NotMapped]
