@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RepairManagerApi.Models
 {
@@ -14,5 +15,18 @@ namespace RepairManagerApi.Models
         
         [StringLength(500)]
         public string Description { get; set; }
+        
+        [StringLength(50)]
+        public string? SKU { get; set; }
+        
+        public int? ServiceCategoryId { get; set; }
+        
+        [ForeignKey("ServiceCategoryId")]
+        public ServiceCategory? ServiceCategory { get; set; }
+        
+        public int? DeviceId { get; set; }
+        
+        [ForeignKey("DeviceId")]
+        public Device? Device { get; set; }
     }
 }

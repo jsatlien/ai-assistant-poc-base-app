@@ -17,6 +17,15 @@ namespace RepairManagerApi.Data
         public DbSet<RepairWorkflow> RepairWorkflows { get; set; }
         public DbSet<RepairProgram> RepairPrograms { get; set; }
         public DbSet<WorkOrder> WorkOrders { get; set; }
+        public DbSet<Manufacturer> Manufacturers { get; set; }
+        public DbSet<ProductCategory> ProductCategories { get; set; }
+        public DbSet<ServiceCategory> ServiceCategories { get; set; }
+        public DbSet<Group> Groups { get; set; }
+        public DbSet<InventoryItem> InventoryItems { get; set; }
+        public DbSet<User> Users { get; set; }
+        public DbSet<UserRole> UserRoles { get; set; }
+        public DbSet<CatalogPricing> CatalogPricing { get; set; }
+        public DbSet<StatusCode> StatusCodes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

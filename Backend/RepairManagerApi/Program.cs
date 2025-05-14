@@ -17,7 +17,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowVueApp", policy =>
     {
-        policy.WithOrigins("http://localhost:8080", "http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:8080", 
+                "http://localhost:3000",
+                "http://localhost:5173", // Vite default
+                "http://localhost:5174",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:8080")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -66,13 +72,31 @@ try
     {
         var services = scope.ServiceProvider;
         var context = services.GetRequiredService<RepairManagerContext>();
-        context.Database.EnsureCreated(); // Create the database if it doesn't exist
-        Console.WriteLine("Database initialized successfully.");
+        
+        // Apply migrations to create or update the database schema
+        context.Database.Migrate();
+        Console.WriteLine("Database migrations applied successfully.");
+        
+        // Then seed the database with initial data
+        try
+        {
+            DbSeeder.SeedData(context);
+            Console.WriteLine("Database seeded successfully.");
+        }
+        catch (Exception seedEx)
+        {
+            Console.WriteLine($"Warning: Error during database seeding: {seedEx.Message}");
+            Console.WriteLine(seedEx.StackTrace);
+            // Continue execution even if seeding fails
+        }
+        
+        Console.WriteLine("Database initialization completed.");
     }
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"An error occurred while initializing the database: {ex.Message}");
+    Console.WriteLine($"Critical error while initializing the database: {ex.Message}");
+    Console.WriteLine(ex.StackTrace);
 }
 
 // Commented out for development to allow HTTP connections

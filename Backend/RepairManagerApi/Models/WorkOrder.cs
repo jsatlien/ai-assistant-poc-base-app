@@ -11,23 +11,40 @@ namespace RepairManagerApi.Models
         [Key]
         public int Id { get; set; }
         
+        [StringLength(10)]
+        public string Code { get; set; } = "WO00000";
+        
         [Required]
         public int DeviceId { get; set; }
         
         [ForeignKey("DeviceId")]
-        public Device Device { get; set; }
+        public Device? Device { get; set; }
         
         [Required]
         public int ServiceId { get; set; }
         
         [ForeignKey("ServiceId")]
-        public Service Service { get; set; }
+        public Service? Service { get; set; }
         
         [Required]
         public int RepairProgramId { get; set; }
         
         [ForeignKey("RepairProgramId")]
-        public RepairProgram RepairProgram { get; set; }
+        public RepairProgram? RepairProgram { get; set; }
+        
+        public int? GroupId { get; set; }
+        
+        [ForeignKey("GroupId")]
+        public Group? Group { get; set; }
+        
+        [StringLength(100)]
+        public string? CustomerName { get; set; }
+        
+        [StringLength(20)]
+        public string? CustomerPhone { get; set; }
+        
+        [StringLength(1000)]
+        public string? IssueDescription { get; set; }
         
         [Required]
         [StringLength(50)]
@@ -45,6 +62,13 @@ namespace RepairManagerApi.Models
                 : System.Text.Json.JsonSerializer.Deserialize<List<int>>(PartIdsJson);
             set => PartIdsJson = System.Text.Json.JsonSerializer.Serialize(value);
         }
+        
+        // Non-mapped properties for UI display
+        [NotMapped]
+        public string DeviceName { get; set; }
+        
+        [NotMapped]
+        public string ServiceName { get; set; }
         
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         
