@@ -15,7 +15,16 @@ builder.Services.AddDbContext<RepairManagerContext>(options =>
 // Add CORS policy
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowVueApp", policy =>
+    // Development CORS policy - allows any origin
+    options.AddPolicy("Development", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+    
+    // Production CORS policy - restricts to specific origins
+    options.AddPolicy("Production", policy =>
     {
         policy.WithOrigins(
                 "http://localhost:8080", 
@@ -23,7 +32,8 @@ builder.Services.AddCors(options =>
                 "http://localhost:5173", // Vite default
                 "http://localhost:5174",
                 "http://127.0.0.1:5173",
-                "http://127.0.0.1:8080")
+                "http://127.0.0.1:8080",
+                "http://localhost:5097")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -73,24 +83,36 @@ try
         var services = scope.ServiceProvider;
         var context = services.GetRequiredService<RepairManagerContext>();
         
+        Console.WriteLine("Starting database initialization...");
+        
+        // Ensure database is created
+        Console.WriteLine("Ensuring database is created...");
+        context.Database.EnsureCreated();
+        
         // Apply migrations to create or update the database schema
+        Console.WriteLine("Applying database migrations...");
         context.Database.Migrate();
         Console.WriteLine("Database migrations applied successfully.");
+        
+        // Check if database has any tables
+        Console.WriteLine("Checking database tables...");
         
         // Then seed the database with initial data
         try
         {
+            Console.WriteLine("Starting database seeding...");
             DbSeeder.SeedData(context);
             Console.WriteLine("Database seeded successfully.");
         }
         catch (Exception seedEx)
         {
-            Console.WriteLine($"Warning: Error during database seeding: {seedEx.Message}");
+            Console.WriteLine($"ERROR: Database seeding failed: {seedEx.Message}");
             Console.WriteLine(seedEx.StackTrace);
-            // Continue execution even if seeding fails
+            // Re-throw to ensure the application doesn't start with an improperly seeded database
+            throw;
         }
         
-        Console.WriteLine("Database initialization completed.");
+        Console.WriteLine("Database initialization completed successfully.");
     }
 }
 catch (Exception ex)
@@ -102,8 +124,17 @@ catch (Exception ex)
 // Commented out for development to allow HTTP connections
 // app.UseHttpsRedirection();
 
-// Use CORS
-app.UseCors("AllowVueApp");
+// Use CORS - different policy based on environment
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("Development"); // Allow any origin in development
+    Console.WriteLine("Using Development CORS policy - allowing any origin");
+}
+else
+{
+    app.UseCors("Production"); // Restrict origins in production
+    Console.WriteLine("Using Production CORS policy - restricted origins");
+}
 
 // Add authentication middleware
 app.UseAuthentication();

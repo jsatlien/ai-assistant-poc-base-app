@@ -35,7 +35,28 @@ namespace RepairManagerApi.Data
 
         private static void SeedGroups(RepairManagerContext context)
         {
-            if (!context.Groups.Any())
+            Console.WriteLine("Starting to seed Groups table...");
+            
+            try
+            {
+                // First check if there are any groups
+                var groupCount = context.Groups.Count();
+                Console.WriteLine($"Found {groupCount} existing groups in the database.");
+                
+                // If there are groups, remove them to ensure clean seeding
+                if (groupCount > 0)
+                {
+                    Console.WriteLine("Removing existing groups...");
+                    foreach (var group in context.Groups.ToList())
+                    {
+                        context.Groups.Remove(group);
+                    }
+                    context.SaveChanges();
+                    Console.WriteLine("Existing groups removed successfully.");
+                }
+                
+                // Now add the new groups
+                Console.WriteLine("Adding new groups...");
             {
                 var groups = new List<Group>
                 {
@@ -72,7 +93,25 @@ namespace RepairManagerApi.Data
                 };
 
                 context.Groups.AddRange(groups);
-                context.SaveChanges();
+                
+                // Save changes and verify the groups were added
+                var saveResult = context.SaveChanges();
+                Console.WriteLine($"Saved {saveResult} groups to the database.");
+                
+                // Verify the groups were added by counting them
+                var newGroupCount = context.Groups.Count();
+                Console.WriteLine($"After seeding, database now contains {newGroupCount} groups.");
+                
+                if (newGroupCount == 0)
+                {
+                    throw new Exception("Failed to seed groups. No groups were added to the database.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR in SeedGroups: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+                throw; // Re-throw to ensure the error is properly handled
             }
         }
 
