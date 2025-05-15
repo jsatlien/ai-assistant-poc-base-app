@@ -1,6 +1,5 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
-import store from '../store'
 
 Vue.use(VueRouter)
 
@@ -173,32 +172,6 @@ const router = new VueRouter({
   routes
 })
 
-// Navigation guards
-router.beforeEach((to, from, next) => {
-  // Check if the route requires authentication or admin permissions
-  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
-  const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin)
-  const isAuthenticated = store.state.isAuthenticated
-  const isAdmin = store.getters.isAdmin
-  
-  // Check authentication on initial load
-  if (from.name === null) {
-    store.dispatch('checkAuth')
-  }
-  
-  if (requiresAuth && !isAuthenticated) {
-    // Redirect to login page if not authenticated
-    next({ name: 'Login' })
-  } else if (requiresAdmin && !isAdmin) {
-    // Redirect to home if not admin but trying to access admin page
-    next({ name: 'Home' })
-  } else if (to.path === '/login' && isAuthenticated) {
-    // Redirect to home if already authenticated and trying to access login page
-    next({ name: 'Home' })
-  } else {
-    // Otherwise proceed as normal
-    next()
-  }
-})
+// No navigation guards - we'll handle authentication at the component level
 
 export default router

@@ -254,84 +254,36 @@ export default {
         },
         pricingMode: 'Itemized'
       },
-      programToDelete: null,
-      // Sample workflows for demo
-      workflows: [
-        {
-          id: 1,
-          name: 'Standard Repair Flow',
-          description: 'Standard workflow for most device repairs'
-        },
-        {
-          id: 2,
-          name: 'Express Repair Flow',
-          description: 'Expedited workflow for urgent repairs'
-        },
-        {
-          id: 3,
-          name: 'Advanced Repair Flow',
-          description: 'Workflow for complex device repairs'
-        }
-      ],
-      // Sample product categories for demo
-      productCategories: [
-        { id: 1, name: 'Smartphones', description: 'Mobile phones with advanced computing capability' },
-        { id: 2, name: 'Tablets', description: 'Portable touchscreen computers' },
-        { id: 3, name: 'Laptops', description: 'Portable personal computers' },
-        { id: 4, name: 'Desktops', description: 'Personal computers designed for regular use at a single location' },
-        { id: 5, name: 'Wearables', description: 'Smart electronic devices that can be worn on the body' }
-      ],
-      // Sample programs for demo
-      programs: [
-        { 
-          id: 1, 
-          name: 'Standard Repair', 
-          description: 'Standard repair program for most devices', 
-          workflowId: 1,
-          warrantyType: 'ALL',
-          eligibleDevices: {
-            type: 'ALL',
-            productCategories: []
-          },
-          pricingMode: 'Itemized'
-        },
-        { 
-          id: 2, 
-          name: 'Express Repair', 
-          description: 'Expedited repair program with faster turnaround', 
-          workflowId: 2,
-          warrantyType: 'IW',
-          eligibleDevices: {
-            type: 'SELECTED',
-            productCategories: [1, 2]
-          },
-          pricingMode: 'Service Levels'
-        },
-        { 
-          id: 3, 
-          name: 'Advanced Repair', 
-          description: 'Advanced repair program for complex issues', 
-          workflowId: 3,
-          warrantyType: 'OOW',
-          eligibleDevices: {
-            type: 'SELECTED',
-            productCategories: [3, 4]
-          },
-          pricingMode: 'Itemized'
-        }
-      ]
+      programToDelete: null
     }
   },
   computed: {
+    workflows() {
+      return this.$store.getters.getWorkflows;
+    },
+    programs() {
+      return this.$store.getters.getPrograms;
+    },
+    productCategories() {
+      return this.$store.getters.getProductCategories;
+    },
     filteredPrograms() {
-      if (!this.searchQuery) return this.programs
+      if (!this.searchQuery) return this.programs;
       
-      const query = this.searchQuery.toLowerCase()
-      return this.programs.filter(program => 
-        program.name.toLowerCase().includes(query) || 
-        (program.description && program.description.toLowerCase().includes(query))
-      )
+      const query = this.searchQuery.toLowerCase();
+      return this.programs.filter(program => {
+        const name = program.name || program.Name || '';
+        const description = program.description || program.Description || '';
+        return name.toLowerCase().includes(query) || 
+               description.toLowerCase().includes(query);
+      });
     }
+  },
+  created() {
+    // Fetch programs, workflows, and product categories from the API
+    this.$store.dispatch('fetchPrograms');
+    this.$store.dispatch('fetchWorkflows');
+    this.$store.dispatch('fetchProductCategories');
   },
   methods: {
     openProgramModal(program = null) {

@@ -87,8 +87,8 @@
               required
             >
               <option value="" disabled>Select a manufacturer</option>
-              <option v-for="manufacturer in manufacturers" :key="manufacturer.id" :value="manufacturer.id">
-                {{ manufacturer.name }}
+              <option v-for="manufacturer in manufacturers" :key="manufacturer.id || manufacturer.Id" :value="manufacturer.id || manufacturer.Id">
+                {{ manufacturer.name || manufacturer.Name }}
               </option>
             </select>
           </div>
@@ -168,8 +168,8 @@ export default {
   methods: {
     getManufacturerName(manufacturerId) {
       if (!manufacturerId) return 'N/A';
-      const manufacturer = this.manufacturers.find(m => m.id === manufacturerId);
-      return manufacturer ? manufacturer.name : 'N/A';
+      const manufacturer = this.manufacturers.find(m => (m.id === manufacturerId || m.Id === manufacturerId));
+      return manufacturer ? (manufacturer.name || manufacturer.Name) : 'N/A';
     },
     getDeviceName(deviceId) {
       if (!deviceId) return 'Not device-specific';

@@ -1,5 +1,8 @@
 import axios from 'axios';
 import apiConfig from '../config/api.config';
+import jwtService from './jwtService';
+import router from '../router';
+import store from '../store';
 
 // Create axios instance with base URL pointing to our backend API
 // Configuration is loaded from the environment-specific config file
@@ -14,8 +17,16 @@ const api = axios.create({
 // Add request interceptor to include auth token in requests
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('auth_token');
+    const token = jwtService.getToken();
     if (token) {
+      // Check if token is expired
+      if (jwtService.isTokenExpired(token)) {
+        // Token is expired, log out the user
+        store.dispatch('logout');
+        return Promise.reject(new Error('Authentication token has expired'));
+      }
+      
+      // Add token to headers
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
@@ -33,8 +44,14 @@ api.interceptors.response.use(
   error => {
     // Handle 401 Unauthorized errors by redirecting to login
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      // Clear authentication data
+      jwtService.removeToken();
+      store.dispatch('logout');
+      
+      // Redirect to login page if not already there
+      if (router.currentRoute.path !== '/login') {
+        router.push('/login');
+      }
     }
     return Promise.reject(error);
   }

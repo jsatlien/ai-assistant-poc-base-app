@@ -3,19 +3,19 @@ import api from './api';
 export default {
   // Work Orders
   getWorkOrders() {
-    return api.get('/WorkOrders');
+    return api.get('/work-orders');
   },
   getWorkOrder(id) {
-    return api.get(`/WorkOrders/${id}`);
+    return api.get(`/work-orders/${id}`);
   },
   createWorkOrder(workOrder) {
-    return api.post('/WorkOrders', workOrder);
+    return api.post('/work-orders', workOrder);
   },
   updateWorkOrder(id, workOrder) {
-    return api.put(`/WorkOrders/${id}`, workOrder);
+    return api.put(`/work-orders/${id}`, workOrder);
   },
   deleteWorkOrder(id) {
-    return api.delete(`/WorkOrders/${id}`);
+    return api.delete(`/work-orders/${id}`);
   },
   
   // Get work orders by status

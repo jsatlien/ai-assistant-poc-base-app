@@ -275,12 +275,20 @@ export default {
     }
   },
   computed: {
+    workflows() {
+      return this.$store.getters.getWorkflows;
+    },
+    statusCodes() {
+      return this.$store.getters.getStatusCodes;
+    },
     filteredFlows() {
-      if (!this.searchQuery) return this.flows;
+      if (!this.searchQuery) return this.workflows;
       const query = this.searchQuery.toLowerCase();
-      return this.flows.filter(flow => {
-        return flow.name.toLowerCase().includes(query) ||
-               flow.description.toLowerCase().includes(query);
+      return this.workflows.filter(flow => {
+        const name = flow.name || flow.Name || '';
+        const description = flow.description || flow.Description || '';
+        return name.toLowerCase().includes(query) ||
+               description.toLowerCase().includes(query);
       });
     },
     groupedTransitions() {
@@ -297,6 +305,11 @@ export default {
       }
       return grouped;
     }
+  },
+  created() {
+    // Fetch workflows and status codes from the API
+    this.$store.dispatch('fetchWorkflows');
+    this.$store.dispatch('fetchStatusCodes');
   },
   methods: {
     openFlowModal(flow = null) {

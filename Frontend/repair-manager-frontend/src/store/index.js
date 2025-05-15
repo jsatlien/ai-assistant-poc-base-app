@@ -1,5 +1,7 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
+import createPersistedState from 'vuex-persistedstate'
+
 import api from '../services/api'
 import { 
   authService, 
@@ -11,11 +13,22 @@ import {
   // Commented out unused services until we need them
   // userService 
 } from '../services'
+import partService from '../services/partService'
 
 Vue.use(Vuex)
 
 export default new Vuex.Store({
+  plugins: [
+    createPersistedState({
+      // Only persist authentication-related state
+      paths: ['user', 'isAuthenticated', 'currentGroup'],
+      // Use localStorage by default
+      storage: window.localStorage
+    })
+  ],
   state: {
+    // Authentication state tracking
+    initialAuthCheckDone: false,
     // Catalog items
     devices: [],
     serviceCategories: [],
@@ -31,6 +44,8 @@ export default new Vuex.Store({
     workflows: [],
     // Programs
     programs: [],
+    // Status Codes
+    statusCodes: [],
     // Groups
     groups: [],
     currentGroup: null,
@@ -70,16 +85,22 @@ export default new Vuex.Store({
     // Work order getters
     getWorkOrders: state => state.workOrders,
     getWorkOrderById: state => id => state.workOrders.find(wo => wo.id === id),
+    
+    // Workflow getters
+    getWorkflows: state => state.workflows,
+    getWorkflowById: state => id => state.workflows.find(w => w.id === id),
+    
+    // Program getters
+    getPrograms: state => state.programs,
+    getProgramById: state => id => state.programs.find(p => p.id === id),
+    
+    // Status code getters
+    getStatusCodes: state => state.statusCodes,
+    getStatusCodeById: state => id => state.statusCodes.find(s => s.id === id),
     getWorkOrdersByGroup: state => groupId => {
       if (groupId === 'all') return state.workOrders;
       return state.workOrders.filter(wo => wo.groupId === groupId);
     },
-    // Workflow getters
-    getWorkflows: state => state.workflows,
-    getWorkflowById: state => id => state.workflows.find(w => w.id === id),
-    // Program getters
-    getPrograms: state => state.programs,
-    getProgramById: state => id => state.programs.find(p => p.id === id),
     // Group getters
     getGroups: state => state.groups,
     getGroupById: state => id => state.groups.find(g => g.id === id),
@@ -87,7 +108,26 @@ export default new Vuex.Store({
     // Auth getters
     isAuthenticated: state => state.isAuthenticated,
     currentUser: state => state.user,
-    isAdmin: state => state.user && state.user.isAdmin,
+    isAdmin: state => {
+      // Add logging to debug admin status
+      console.log('Checking isAdmin, user object:', state.user);
+      
+      // If no user, not admin
+      if (!state.user) {
+        console.log('No user object, not admin');
+        return false;
+      }
+      
+      // Check all possible admin flags
+      const isAdminFlag = state.user.isAdmin || state.user.IsAdmin;
+      const isAdminRole = state.user.role === 'Administrator' || state.user.Role === 'Administrator';
+      const isAdminUsername = state.user.username === 'admin' || state.user.Username === 'admin';
+      
+      console.log('Admin checks:', { isAdminFlag, isAdminRole, isAdminUsername });
+      
+      // Return true if any admin check passes
+      return isAdminFlag || isAdminRole || isAdminUsername;
+    },
     getUserRoles: state => state.userRoles,
     getCatalogPricing: state => state.catalogPricing,
     // Inventory getters
@@ -101,6 +141,10 @@ export default new Vuex.Store({
     }
   },
   mutations: {
+    // Authentication tracking mutations
+    SET_INITIAL_AUTH_CHECK_DONE(state, value) {
+      state.initialAuthCheckDone = value;
+    },
     // Catalog mutations
     SET_DEVICES(state, devices) {
       state.devices = devices
@@ -241,8 +285,8 @@ export default new Vuex.Store({
     DELETE_WORK_ORDER(state, workOrderId) {
       state.workOrders = state.workOrders.filter(w => w.id !== workOrderId)
     },
-    SET_WORK_ORDER_COUNTER(state, counter) {
-      state.workOrderCounter = counter
+    SET_WORK_ORDER_COUNTER(state, count) {
+      state.workOrderCounter = count
     },
     // Workflow mutations
     SET_WORKFLOWS(state, workflows) {
@@ -324,6 +368,10 @@ export default new Vuex.Store({
     SET_CATALOG_PRICING(state, pricing) {
       state.catalogPricing = pricing
     },
+    // Status Code mutations
+    SET_STATUS_CODES(state, statusCodes) {
+      state.statusCodes = statusCodes
+    },
     ADD_CATALOG_PRICE(state, price) {
       state.catalogPricing.push(price)
     },
@@ -377,15 +425,8 @@ export default new Vuex.Store({
         commit('SET_DEVICES', response.data)
       } catch (error) {
         console.error('Error fetching devices:', error)
-        // For demo purposes, load some sample devices if API fails
-        const sampleDevices = [
-          { id: 1, name: 'iPhone 13', description: 'Apple smartphone with 6.1-inch display', sku: 'DEV-APL-001' },
-          { id: 2, name: 'Samsung Galaxy S21', description: 'Android smartphone with 6.2-inch display', sku: 'DEV-SMS-001' },
-          { id: 3, name: 'iPad Pro', description: '12.9-inch tablet with M1 chip', sku: 'DEV-APL-002' },
-          { id: 4, name: 'MacBook Air', description: '13-inch laptop with Apple M1 chip', sku: 'DEV-APL-003' },
-          { id: 5, name: 'Dell XPS 13', description: '13-inch Windows laptop with Intel Core i7', sku: 'DEV-DEL-001' }
-        ]
-        commit('SET_DEVICES', sampleDevices)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_DEVICES', [])
       }
     },
     async addDevice({ commit }, device) {
@@ -424,15 +465,8 @@ export default new Vuex.Store({
         commit('SET_SERVICE_CATEGORIES', response.data)
       } catch (error) {
         console.error('Error fetching service categories:', error)
-        // Fallback to sample data if API fails
-        const sampleCategories = [
-          { id: 1, name: 'Screen Repairs', description: 'Services for screen replacements and repairs' },
-          { id: 2, name: 'Battery Services', description: 'Battery replacement and optimization services' },
-          { id: 3, name: 'Water Damage', description: 'Water damage assessment and repair services' },
-          { id: 4, name: 'Hardware Repairs', description: 'Hardware component repair and replacement' },
-          { id: 5, name: 'Data Services', description: 'Data recovery and transfer services' }
-        ]
-        commit('SET_SERVICE_CATEGORIES', sampleCategories)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_SERVICE_CATEGORIES', [])
       }
     },
     async fetchProductCategories({ commit }) {
@@ -441,34 +475,19 @@ export default new Vuex.Store({
         commit('SET_PRODUCT_CATEGORIES', response.data)
       } catch (error) {
         console.error('Error fetching product categories:', error)
-        // Fallback to sample data if API fails
-        const sampleProductCategories = [
-          { id: 1, name: 'Smartphones', description: 'Mobile phones with advanced computing capability' },
-          { id: 2, name: 'Tablets', description: 'Portable touchscreen computers' },
-          { id: 3, name: 'Laptops', description: 'Portable personal computers' },
-          { id: 4, name: 'Desktops', description: 'Personal computers designed for regular use at a single location' },
-          { id: 5, name: 'Wearables', description: 'Smart electronic devices that can be worn on the body' }
-        ]
-        commit('SET_PRODUCT_CATEGORIES', sampleProductCategories)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_PRODUCT_CATEGORIES', [])
       }
     },
     async fetchManufacturers({ commit }) {
       try {
         const response = await catalogService.getManufacturers()
+        console.log('Manufacturers API response:', response.data)
         commit('SET_MANUFACTURERS', response.data)
       } catch (error) {
         console.error('Error fetching manufacturers:', error)
-        // Fallback to sample data if API fails
-        const sampleManufacturers = [
-          { id: 1, name: 'Apple', description: 'Manufacturer of iPhone, iPad, and Mac computers' },
-          { id: 2, name: 'Samsung', description: 'Manufacturer of Galaxy smartphones and tablets' },
-          { id: 3, name: 'Google', description: 'Manufacturer of Pixel smartphones and other devices' },
-          { id: 4, name: 'Microsoft', description: 'Manufacturer of Surface devices and Xbox consoles' },
-          { id: 5, name: 'Dell', description: 'Manufacturer of laptops, desktops, and servers' },
-          { id: 6, name: 'HP', description: 'Manufacturer of laptops, desktops, and printers' },
-          { id: 7, name: 'Lenovo', description: 'Manufacturer of ThinkPad laptops and other devices' }
-        ]
-        commit('SET_MANUFACTURERS', sampleManufacturers)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_MANUFACTURERS', [])
       }
     },
     async addServiceCategory({ commit }, category) {
@@ -555,95 +574,117 @@ export default new Vuex.Store({
     },
     async addManufacturer({ commit }, manufacturer) {
       try {
-        // In a real app, this would call the API
-        const response = await api.post('/manufacturers', manufacturer)
-        commit('ADD_MANUFACTURER', response.data)
-        return response.data
-      } catch (error) {
-        console.error('Error adding manufacturer:', error)
-        // For demo, we'll just add it to the store with a generated ID
-        const newManufacturer = {
-          ...manufacturer,
-          id: Date.now()
+        // Convert to Pascal case for backend API
+        const normalizedManufacturer = {
+          Name: manufacturer.name,
+          Description: manufacturer.description
         }
+        
+        const response = await catalogService.createManufacturer(normalizedManufacturer)
+        
+        // Convert back to camel case for frontend consistency
+        const newManufacturer = {
+          id: response.data.Id || response.data.id,
+          name: response.data.Name || response.data.name,
+          description: response.data.Description || response.data.description
+        }
+        
         commit('ADD_MANUFACTURER', newManufacturer)
         return newManufacturer
+      } catch (error) {
+        console.error('Error adding manufacturer:', error)
+        throw error
       }
     },
     async updateManufacturer({ commit }, manufacturer) {
       try {
-        const response = await api.put(`/manufacturers/${manufacturer.id}`, manufacturer)
-        commit('UPDATE_MANUFACTURER', response.data)
-        return response.data
+        // Convert to Pascal case for backend API
+        const normalizedManufacturer = {
+          Id: manufacturer.id,
+          Name: manufacturer.name,
+          Description: manufacturer.description
+        }
+        
+        const response = await catalogService.updateManufacturer(manufacturer.id, normalizedManufacturer)
+        
+        // Convert back to camel case for frontend consistency
+        const updatedManufacturer = {
+          id: response.data.Id || response.data.id,
+          name: response.data.Name || response.data.name,
+          description: response.data.Description || response.data.description
+        }
+        
+        commit('UPDATE_MANUFACTURER', updatedManufacturer)
+        return updatedManufacturer
       } catch (error) {
         console.error('Error updating manufacturer:', error)
-        // For demo, we'll just update it in the store
-        commit('UPDATE_MANUFACTURER', manufacturer)
-        return manufacturer
+        throw error
       }
     },
     async deleteManufacturer({ commit }, manufacturerId) {
       try {
-        await api.delete(`/manufacturers/${manufacturerId}`)
+        await catalogService.deleteManufacturer(manufacturerId)
         commit('DELETE_MANUFACTURER', manufacturerId)
         return true
       } catch (error) {
         console.error('Error deleting manufacturer:', error)
-        // For demo, we'll just delete it from the store
-        commit('DELETE_MANUFACTURER', manufacturerId)
-        return true
+        throw error
       }
     },
+    
+    async fetchParts({ commit }) {
+      try {
+        const response = await partService.getParts()
+        commit('SET_PARTS', response.data)
+      } catch (error) {
+        console.error('Error fetching parts:', error)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_PARTS', [])
+      }
+    },
+    
+    // Workflow actions
+    async fetchWorkflows({ commit }) {
+      try {
+        const response = await workflowService.getWorkflows()
+        commit('SET_WORKFLOWS', response.data)
+      } catch (error) {
+        console.error('Error fetching workflows:', error)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_WORKFLOWS', [])
+      }
+    },
+    
+    async fetchPrograms({ commit }) {
+      try {
+        const response = await workflowService.getPrograms()
+        commit('SET_PROGRAMS', response.data)
+      } catch (error) {
+        console.error('Error fetching programs:', error)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_PROGRAMS', [])
+      }
+    },
+    
+    async fetchStatusCodes({ commit }) {
+      try {
+        const response = await workflowService.getStatusCodes()
+        commit('SET_STATUS_CODES', response.data)
+      } catch (error) {
+        console.error('Error fetching status codes:', error)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_STATUS_CODES', [])
+      }
+    },
+    
     async fetchServices({ commit }) {
       try {
         const response = await api.get('/catalog/services')
         commit('SET_SERVICES', response.data)
       } catch (error) {
         console.error('Error fetching services:', error)
-        // For demo purposes, load some sample services if API fails
-        const sampleServices = [
-          { 
-            id: 1, 
-            name: 'iPhone Screen Replacement', 
-            description: 'Replace damaged screens for iPhone devices',
-            categoryId: 1, // Screen Repairs
-            deviceId: 1, // iPhone 13
-            sku: 'SRV-SCR-001'
-          },
-          { 
-            id: 2, 
-            name: 'Samsung Screen Replacement', 
-            description: 'Replace damaged screens for Samsung devices',
-            categoryId: 1, // Screen Repairs
-            deviceId: 2, // Samsung Galaxy S21
-            sku: 'SRV-SCR-002'
-          },
-          { 
-            id: 3, 
-            name: 'Battery Replacement - All Phones', 
-            description: 'Replace old or damaged batteries for all phone types',
-            categoryId: 2, // Battery Services
-            deviceId: null, // Not device-specific
-            sku: 'SRV-BAT-001'
-          },
-          { 
-            id: 4, 
-            name: 'Water Damage Assessment', 
-            description: 'Initial assessment of water-damaged devices',
-            categoryId: 3, // Water Damage
-            deviceId: null, // Not device-specific
-            sku: 'SRV-WTR-001'
-          },
-          { 
-            id: 5, 
-            name: 'Data Recovery Service', 
-            description: 'Recover lost or deleted data from damaged devices',
-            categoryId: 5, // Data Services
-            deviceId: null, // Not device-specific
-            sku: 'SRV-DAT-001'
-          }
-        ]
-        commit('SET_SERVICES', sampleServices)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_SERVICES', [])
       }
     },
     async addService({ commit }, service) {
@@ -681,54 +722,7 @@ export default new Vuex.Store({
         console.error('Error deleting service:', error)
       }
     },
-    async fetchPrograms({ commit }) {
-      try {
-        const response = await workflowService.getPrograms()
-        commit('SET_PROGRAMS', response.data)
-      } catch (error) {
-        console.error('Error fetching programs:', error)
-        // For demo purposes, load some sample programs if API fails
-        const samplePrograms = [
-          { 
-            id: 1, 
-            name: 'Standard Repair', 
-            description: 'Standard repair program for most devices', 
-            workflowId: 1,
-            warrantyType: 'ALL',
-            eligibleDevices: {
-              type: 'ALL',
-              productCategories: []
-            },
-            pricingMode: 'Itemized'
-          },
-          { 
-            id: 2, 
-            name: 'Express Repair', 
-            description: 'Expedited repair program with faster turnaround', 
-            workflowId: 2,
-            warrantyType: 'IW',
-            eligibleDevices: {
-              type: 'SELECTED',
-              productCategories: [1, 2]
-            },
-            pricingMode: 'Service Levels'
-          },
-          { 
-            id: 3, 
-            name: 'Advanced Repair', 
-            description: 'Advanced repair program for complex issues', 
-            workflowId: 3,
-            warrantyType: 'OOW',
-            eligibleDevices: {
-              type: 'SELECTED',
-              productCategories: [3, 4]
-            },
-            pricingMode: 'Itemized'
-          }
-        ]
-        commit('SET_PROGRAMS', samplePrograms)
-      }
-    },
+
     async fetchServiceParts({ commit }) {
       try {
         const response = await catalogService.getServiceParts()
@@ -821,74 +815,17 @@ export default new Vuex.Store({
       try {
         const response = await workOrderService.getWorkOrders()
         commit('SET_WORK_ORDERS', response.data)
+        
+        // Set the work order counter based on the highest ID from the API
+        if (response.data && response.data.length > 0) {
+          const highestId = Math.max(...response.data.map(wo => wo.id || wo.Id || 0))
+          commit('SET_WORK_ORDER_COUNTER', highestId)
+        }
       } catch (error) {
         console.error('Error fetching work orders:', error)
-        // For demo purposes, load some sample work orders if API fails
-        const sampleWorkOrders = [
-          { 
-            id: 1, 
-            code: 'WO00001',
-            customerName: 'John Smith', 
-            customerPhone: '555-123-4567',
-            deviceId: 1,
-            deviceName: 'iPhone 13',
-            serviceId: 1,
-            serviceName: 'Screen Replacement',
-            issueDescription: 'Cracked screen after dropping phone',
-            status: 'in-progress',
-            groupId: 1, // Main Repair Center
-            createdAt: '2025-05-10T14:30:00Z',
-            updatedAt: '2025-05-11T09:15:00Z'
-          },
-          { 
-            id: 2, 
-            code: 'WO00002',
-            customerName: 'Sarah Johnson', 
-            customerPhone: '555-987-6543',
-            deviceId: 2,
-            deviceName: 'Samsung Galaxy S21',
-            serviceId: 2,
-            serviceName: 'Battery Replacement',
-            issueDescription: 'Battery drains very quickly, needs replacement',
-            status: 'open',
-            groupId: 1, // Main Repair Center
-            createdAt: '2025-05-11T16:45:00Z',
-            updatedAt: null
-          },
-          { 
-            id: 3, 
-            code: 'WO00003',
-            customerName: 'Michael Brown', 
-            customerPhone: '555-456-7890',
-            deviceId: 4,
-            deviceName: 'MacBook Air',
-            serviceId: 4,
-            serviceName: 'Software Troubleshooting',
-            issueDescription: 'System crashes frequently when using video editing software',
-            status: 'completed',
-            groupId: 2, // West Coast Repair Center
-            createdAt: '2025-05-09T10:15:00Z',
-            updatedAt: '2025-05-12T11:30:00Z'
-          },
-          { 
-            id: 4, 
-            code: 'WO00004',
-            customerName: 'Emily Davis', 
-            customerPhone: '555-789-0123',
-            deviceId: 3,
-            deviceName: 'iPad Pro',
-            serviceId: 3,
-            serviceName: 'Water Damage Repair',
-            issueDescription: 'Device was dropped in water, not turning on',
-            status: 'cancelled',
-            groupId: 3, // Southern Repair Center
-            createdAt: '2025-05-08T09:00:00Z',
-            updatedAt: '2025-05-08T14:20:00Z'
-          }
-        ]
-        commit('SET_WORK_ORDERS', sampleWorkOrders)
-        // Set the work order counter to the highest ID
-        commit('SET_WORK_ORDER_COUNTER', 4)
+        // No fallback to dummy data - we want to rely on the API
+        commit('SET_WORK_ORDERS', [])
+        commit('SET_WORK_ORDER_COUNTER', 0)
       }
     },
     async addWorkOrder({ commit, state }, workOrder) {
@@ -994,14 +931,7 @@ export default new Vuex.Store({
     },
 
     // Workflow actions
-    async fetchWorkflows({ commit }) {
-      try {
-        const response = await api.get('/workflows')
-        commit('SET_WORKFLOWS', response.data)
-      } catch (error) {
-        console.error('Error fetching workflows:', error)
-      }
-    },
+
     async fetchWorkflow(context, id) {
       try {
         const response = await api.get(`/workflows/${id}`)
@@ -1056,55 +986,79 @@ export default new Vuex.Store({
         console.error(`Error updating program ${id}:`, error)
       }
     },
-    // Auth actions
-    async login({ commit }, credentials) {
+    async login({ commit, dispatch }, credentials) {
       try {
-        // Try to login with the real API
-        const response = await authService.login(credentials)
-        const { token, user } = response.data
-        localStorage.setItem('auth_token', token)
-        commit('SET_AUTH', { user, isAuthenticated: true })
-        return true
-      } catch (error) {
-        console.error('Login error:', error)
+        // Use the authService to login and handle JWT token storage
+        const response = await authService.login(credentials);
+        const { user } = response.data;
         
-        // For demo purposes, we'll provide a fallback if the API fails
-        if (credentials.username === 'admin' && credentials.password === 'admin123') {
-          const user = {
-            id: 1,
-            username: 'admin',
-            fullName: 'System Administrator',
-            email: 'admin@repairmanager.com',
-            role: 'Administrator',
-            isAdmin: true
+        // Update Vuex state
+        commit('SET_AUTH', { user, isAuthenticated: true });
+        
+        // Set the current group if provided in credentials
+        if (credentials.groupId) {
+          await dispatch('fetchGroups');
+          const group = this.getters.getGroupById(credentials.groupId);
+          if (group) {
+            dispatch('setCurrentGroup', group);
           }
-          const token = 'demo-token-' + Date.now()
-          localStorage.setItem('auth_token', token)
-          commit('SET_AUTH', { user, isAuthenticated: true })
-          return true
         }
-        return false
+        
+        return true;
+      } catch (error) {
+        console.error('Login error:', error);
+        return false;
       }
     },
+    
     async logout({ commit }) {
-      await authService.logout()
-      commit('LOGOUT')
+      // Use the authService to handle logout and JWT token removal
+      await authService.logout();
+      
+      // Update Vuex state
+      commit('LOGOUT');
     },
-    async checkAuth({ commit }) {
-      const token = localStorage.getItem('auth_token')
-      if (token) {
+    
+    async checkAuth({ commit, dispatch, state }) {
+      // If we're already authenticated in Vuex state, just verify token
+      if (state.isAuthenticated && state.user) {
+        // If token is invalid, log out
+        if (!authService.isTokenValid()) {
+          await dispatch('logout');
+        }
+        return;
+      }
+      
+      // Check if we have a valid token
+      if (authService.isTokenValid()) {
         try {
-          // Verify the token with the API
-          const response = await authService.getCurrentUser()
-          commit('SET_AUTH', { user: response.data, isAuthenticated: true })
+          // Get current user data
+          const userData = authService.getUser();
+          if (userData) {
+            // Update Vuex state with the stored user data
+            commit('SET_AUTH', { user: userData, isAuthenticated: true });
+            
+            // If the user has a group, set it as current
+            if (userData.groupId) {
+              await dispatch('fetchGroups');
+              const group = this.getters.getGroupById(userData.groupId);
+              if (group) {
+                dispatch('setCurrentGroup', group);
+              }
+            }
+            return;
+          }
+          
+          // If no stored user data, try to get it from the API
+          const response = await authService.getCurrentUser();
+          commit('SET_AUTH', { user: response.data, isAuthenticated: true });
         } catch (error) {
-          console.error('Token verification error:', error)
-          // If token verification fails, clear it
-          localStorage.removeItem('auth_token')
-          commit('LOGOUT')
+          console.error('Authentication check error:', error);
+          await dispatch('logout');
         }
       }
     },
+// ... (rest of the code remains the same)
     async fetchUserRoles({ commit }) {
       try {
         const response = await api.get('/user-roles')

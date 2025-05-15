@@ -20,53 +20,53 @@ export default {
 
   // Product Categories
   getProductCategories() {
-    return api.get('/ProductCategories');
+    return api.get('/product-categories');
   },
   getProductCategory(id) {
-    return api.get(`/ProductCategories/${id}`);
+    return api.get(`/product-categories/${id}`);
   },
   createProductCategory(category) {
-    return api.post('/ProductCategories', category);
+    return api.post('/product-categories', category);
   },
   updateProductCategory(id, category) {
-    return api.put(`/ProductCategories/${id}`, category);
+    return api.put(`/product-categories/${id}`, category);
   },
   deleteProductCategory(id) {
-    return api.delete(`/ProductCategories/${id}`);
+    return api.delete(`/product-categories/${id}`);
   },
 
   // Service Categories
   getServiceCategories() {
-    return api.get('/ServiceCategories');
+    return api.get('/service-categories');
   },
   getServiceCategory(id) {
-    return api.get(`/ServiceCategories/${id}`);
+    return api.get(`/service-categories/${id}`);
   },
   createServiceCategory(category) {
-    return api.post('/ServiceCategories', category);
+    return api.post('/service-categories', category);
   },
   updateServiceCategory(id, category) {
-    return api.put(`/ServiceCategories/${id}`, category);
+    return api.put(`/service-categories/${id}`, category);
   },
   deleteServiceCategory(id) {
-    return api.delete(`/ServiceCategories/${id}`);
+    return api.delete(`/service-categories/${id}`);
   },
 
   // Manufacturers
   getManufacturers() {
-    return api.get('/Manufacturers');
+    return api.get('/manufacturers');
   },
   getManufacturer(id) {
-    return api.get(`/Manufacturers/${id}`);
+    return api.get(`/manufacturers/${id}`);
   },
   createManufacturer(manufacturer) {
-    return api.post('/Manufacturers', manufacturer);
+    return api.post('/manufacturers', manufacturer);
   },
   updateManufacturer(id, manufacturer) {
-    return api.put(`/Manufacturers/${id}`, manufacturer);
+    return api.put(`/manufacturers/${id}`, manufacturer);
   },
   deleteManufacturer(id) {
-    return api.delete(`/Manufacturers/${id}`);
+    return api.delete(`/manufacturers/${id}`);
   },
 
   // Services

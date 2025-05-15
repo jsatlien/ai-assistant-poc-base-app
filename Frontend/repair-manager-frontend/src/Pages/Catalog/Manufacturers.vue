@@ -23,9 +23,9 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="manufacturer in filteredManufacturers" :key="manufacturer.id">
-            <td>{{ manufacturer.name }}</td>
-            <td>{{ manufacturer.description }}</td>
+          <tr v-for="manufacturer in filteredManufacturers" :key="manufacturer.id || manufacturer.Id">
+            <td>{{ manufacturer.name || manufacturer.Name }}</td>
+            <td>{{ manufacturer.description || manufacturer.Description }}</td>
             <td>
               <div class="actions-cell">
                 <button class="btn-edit" @click="editManufacturer(manufacturer)">Edit</button>
@@ -40,6 +40,8 @@
     <div v-else class="empty-state">
       <p>No manufacturers found. Add your first manufacturer to get started.</p>
     </div>
+
+
 
     <!-- Manufacturer Modal -->
     <div v-if="showManufacturerModal" class="modal">
@@ -121,10 +123,11 @@ export default {
       if (!this.searchQuery) return this.manufacturers
       
       const query = this.searchQuery.toLowerCase()
-      return this.manufacturers.filter(manufacturer => 
-        manufacturer.name.toLowerCase().includes(query) || 
-        (manufacturer.description && manufacturer.description.toLowerCase().includes(query))
-      )
+      return this.manufacturers.filter(manufacturer => {
+        const name = manufacturer.name || manufacturer.Name || ''
+        const description = manufacturer.description || manufacturer.Description || ''
+        return name.toLowerCase().includes(query) || description.toLowerCase().includes(query)
+      })
     }
   },
   created() {
@@ -161,10 +164,22 @@ export default {
       }
     },
     editManufacturer(manufacturer) {
-      this.openManufacturerModal(manufacturer)
+      this.isEditing = true
+      // Normalize the data to use lowercase property names
+      this.currentManufacturer = { 
+        id: manufacturer.id || manufacturer.Id,
+        name: manufacturer.name || manufacturer.Name || '',
+        description: manufacturer.description || manufacturer.Description || ''
+      }
+      this.showManufacturerModal = true
     },
     confirmDeleteManufacturer(manufacturer) {
-      this.manufacturerToDelete = manufacturer
+      // Normalize the data to use lowercase property names
+      this.manufacturerToDelete = {
+        id: manufacturer.id || manufacturer.Id,
+        name: manufacturer.name || manufacturer.Name || '',
+        description: manufacturer.description || manufacturer.Description || ''
+      }
       this.showConfirmationModal = true
     },
     closeConfirmationModal() {

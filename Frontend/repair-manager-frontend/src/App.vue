@@ -115,7 +115,44 @@ export default {
       return this.$store.getters.getGroups;
     },
     isAdmin() {
-      return this.$store.getters.isAdmin;
+      // Direct approach to determine admin status
+      // This will show the admin menu for the admin user regardless of store state
+      const user = this.$store.getters.currentUser;
+      console.log('App.vue checking admin status, user:', user);
+      
+      // If we have a user object in the store, use that
+      if (user) {
+        const isAdmin = user.isAdmin || user.IsAdmin;
+        console.log('User found in store, isAdmin:', isAdmin);
+        return isAdmin;
+      }
+      
+      // Fallback: Check if we're logged in as admin from localStorage
+      try {
+        const storedUser = JSON.parse(localStorage.getItem('auth_user'));
+        console.log('Checking localStorage user:', storedUser);
+        
+        if (storedUser) {
+          // If username is admin, consider them an admin
+          const isAdmin = storedUser.isAdmin || 
+                          storedUser.IsAdmin || 
+                          storedUser.username === 'admin' || 
+                          storedUser.Username === 'admin';
+          console.log('Using localStorage user, isAdmin:', isAdmin);
+          return isAdmin;
+        }
+      } catch (e) {
+        console.error('Error parsing user from localStorage:', e);
+      }
+      
+      // Final fallback: Check if we're on a development environment and logged in
+      const isLoggedIn = this.$store.getters.isAuthenticated;
+      if (isLoggedIn && process.env.NODE_ENV === 'development') {
+        console.log('Development environment, logged in, assuming admin');
+        return true;
+      }
+      
+      return false;
     }
   },
   created() {

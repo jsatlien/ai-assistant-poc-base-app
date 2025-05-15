@@ -48,8 +48,8 @@
               required
             >
               <option value="" disabled>Select a group</option>
-              <option v-for="group in groups" :key="group.id" :value="group.id">
-                {{ group.code }} - {{ group.description }}
+              <option v-for="group in groups" :key="group.Id" :value="group.Id">
+                {{ group.Code }} - {{ group.Description }}
               </option>
             </select>
           </div>
@@ -72,8 +72,11 @@
 </template>
 
 <script>
+import SessionMixin from '../mixins/SessionMixin';
+
 export default {
   name: 'LoginPage',
+  mixins: [SessionMixin],
   data() {
     return {
       username: '',
@@ -95,35 +98,24 @@ export default {
       this.error = null;
       
       try {
-        // For demo purposes, we'll bypass the actual API call
-        // and simulate a successful login
-        console.log('Login attempt with:', this.username, this.password);
+        console.log('Login attempt with:', this.username, this.password, 'Group ID:', this.selectedGroupId);
         
-        // Check if credentials match our demo account
-        if (this.username === 'admin' && this.password === 'admin123') {
-          // Simulate successful login
-          const user = {
-            username: 'admin',
-            displayName: 'Admin User',
-            role: 'Administrator',
-            isAdmin: true
-          };
-          
-          // Store token in localStorage (simulated token)
-          const token = 'demo-jwt-token-' + Date.now();
-          localStorage.setItem('auth_token', token);
-          
-          // Update Vuex store
-          this.$store.commit('SET_AUTH', { user, isAuthenticated: true });
-          
-          // Set the selected group
-          const selectedGroup = this.groups.find(g => g.id === this.selectedGroupId);
+        // Direct store dispatch without using auth utility
+        const success = await this.$store.dispatch('login', {
+          username: this.username,
+          password: this.password,
+          groupId: this.selectedGroupId
+        });
+        
+        if (success) {
+          // Set the selected group if needed
+          const selectedGroup = this.groups.find(g => g.Id === this.selectedGroupId);
           if (selectedGroup) {
             this.$store.dispatch('setCurrentGroup', selectedGroup);
           }
           
-          // Redirect to home page after successful login
-          this.$router.push('/');
+          // Use window.location for navigation to avoid Vue Router redirection issues
+          window.location.href = '/';
         } else {
           this.error = 'Invalid username or password';
         }

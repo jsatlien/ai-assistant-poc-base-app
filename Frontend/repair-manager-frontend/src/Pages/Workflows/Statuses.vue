@@ -110,30 +110,28 @@ export default {
         name: '',
         description: ''
       },
-      statusToDelete: null,
-      // Sample statuses for demo
-      statuses: [
-        { id: 1, name: 'Received', description: 'Device has been received at the repair center' },
-        { id: 2, name: 'Diagnosing', description: 'Technician is diagnosing the issue' },
-        { id: 3, name: 'Awaiting Parts', description: 'Waiting for parts to arrive' },
-        { id: 4, name: 'In Repair', description: 'Device is being repaired' },
-        { id: 5, name: 'Quality Check', description: 'Performing quality assurance checks' },
-        { id: 6, name: 'Ready for Pickup', description: 'Device is repaired and ready for pickup' },
-        { id: 7, name: 'Delivered', description: 'Device has been returned to customer' },
-        { id: 8, name: 'Cancelled', description: 'Repair has been cancelled' }
-      ]
+      statusToDelete: null
     }
   },
   computed: {
+    statuses() {
+      return this.$store.getters.getStatusCodes;
+    },
     filteredStatuses() {
-      if (!this.searchQuery) return this.statuses
+      if (!this.searchQuery) return this.statuses;
       
-      const query = this.searchQuery.toLowerCase()
-      return this.statuses.filter(status => 
-        status.name.toLowerCase().includes(query) || 
-        (status.description && status.description.toLowerCase().includes(query))
-      )
+      const query = this.searchQuery.toLowerCase();
+      return this.statuses.filter(status => {
+        const name = status.name || status.Name || status.code || status.Code || '';
+        const description = status.description || status.Description || '';
+        return name.toLowerCase().includes(query) || 
+               description.toLowerCase().includes(query);
+      });
     }
+  },
+  created() {
+    // Fetch status codes from the API
+    this.$store.dispatch('fetchStatusCodes');
   },
   methods: {
     openStatusModal(status = null) {
