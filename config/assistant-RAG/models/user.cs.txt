@@ -1,0 +1,48 @@
+// FILE: User.cs
+// MODEL: User (Entity Framework)
+
+using System;
+using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace RepairManagerApi.Models
+{
+    public class User : IdentityUser
+    {
+        // Map legacy properties to Identity properties
+        [NotMapped]
+        public int LegacyId { 
+            get => int.TryParse(base.Id, out var id) ? id : 0; 
+            set => base.Id = value.ToString(); 
+        }
+        
+        [NotMapped]
+        public string Username { 
+            get => UserName ?? string.Empty; 
+            set => UserName = value; 
+        }
+        
+        // Keep FullName as a custom property
+        [StringLength(100)]
+        public string FullName { get; set; } = string.Empty;
+        
+        // Role relationship is handled differently in Identity
+        // We'll use UserRoles collection instead
+        public int RoleId { get; set; }
+        
+        [ForeignKey("RoleId")]
+        public UserRole? Role { get; set; }
+        
+        public int? GroupId { get; set; }
+        
+        [ForeignKey("GroupId")]
+        public Group? Group { get; set; }
+        
+        public bool IsAdmin { get; set; }
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public DateTime? LastLoginAt { get; set; }
+    }
+}

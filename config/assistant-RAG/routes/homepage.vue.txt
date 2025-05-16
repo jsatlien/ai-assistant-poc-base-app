@@ -1,0 +1,161 @@
+// FILE: Pages/HomePage.vue
+// ROUTE: /
+
+<template>
+  <div class="home-page">
+    <div class="dashboard-header">
+      <h1>Dashboard</h1>
+      <div class="user-welcome">
+        Welcome, <strong>Admin User</strong>
+      </div>
+    </div>
+    
+    <div class="dashboard-stats">
+      <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-value">12</div>
+        <div class="stat-label">Active Work Orders</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">⚙️</div>
+        <div class="stat-value">5</div>
+        <div class="stat-label">Repair Programs</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">📱</div>
+        <div class="stat-value">8</div>
+        <div class="stat-label">Device Types</div>
+      </div>
+      
+      <div class="stat-card">
+        <div class="stat-icon">🔧</div>
+        <div class="stat-value">15</div>
+        <div class="stat-label">Services</div>
+      </div>
+    </div>
+    
+    <div class="dashboard-actions">
+      <button class="action-button" @click="$router.push('/work-orders/new')">
+        <span class="action-icon">➕</span>
+        <span class="action-text">New Work Order</span>
+      </button>
+      
+      <button class="action-button" @click="$router.push('/work-orders')">
+        <span class="action-icon">📋</span>
+        <span class="action-text">View Work Orders</span>
+      </button>
+      
+      <button class="action-button" @click="$router.push('/catalog/devices')">
+        <span class="action-icon">📱</span>
+        <span class="action-text">Manage Devices</span>
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+import { mapGetters } from 'vuex';
+
+export default {
+  name: 'HomePage',
+  computed: {
+    ...mapGetters(['currentUser'])
+  }
+}
+</script>
+
+<style scoped>
+.home-page {
+  padding: 2rem;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-header h1 {
+  margin: 0;
+  color: var(--dark-gray);
+}
+
+.user-welcome {
+  font-size: 1.1rem;
+  color: var(--dark-gray);
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-card {
+  background-color: var(--white);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  font-size: 1rem;
+  color: var(--dark-gray);
+}
+
+.dashboard-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  background-color: var(--white);
+  border: 1px solid var(--medium-gray);
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  background-color: var(--light-gray);
+  border-color: var(--primary-color);
+}
+
+.action-icon {
+  font-size: 1.5rem;
+  margin-right: 1rem;
+}
+
+.action-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--dark-gray);
+}
+</style>

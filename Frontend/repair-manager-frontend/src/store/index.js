@@ -20,14 +20,17 @@ Vue.use(Vuex)
 export default new Vuex.Store({
   plugins: [
     createPersistedState({
-      // Only persist authentication-related state
-      paths: ['user', 'isAuthenticated', 'currentGroup'],
+      // Only persist non-sensitive state
+      // Note: We no longer persist user or auth state as that's handled by JWT
+      paths: ['currentGroup'],
       // Use localStorage by default
       storage: window.localStorage
     })
   ],
   state: {
-    // Authentication state tracking
+    // Authentication state
+    user: null,
+    isAuthenticated: false,
     initialAuthCheckDone: false,
     // Catalog items
     devices: [],
@@ -109,24 +112,14 @@ export default new Vuex.Store({
     isAuthenticated: state => state.isAuthenticated,
     currentUser: state => state.user,
     isAdmin: state => {
-      // Add logging to debug admin status
-      console.log('Checking isAdmin, user object:', state.user);
-      
       // If no user, not admin
       if (!state.user) {
-        console.log('No user object, not admin');
         return false;
       }
       
-      // Check all possible admin flags
-      const isAdminFlag = state.user.isAdmin || state.user.IsAdmin;
-      const isAdminRole = state.user.role === 'Administrator' || state.user.Role === 'Administrator';
-      const isAdminUsername = state.user.username === 'admin' || state.user.Username === 'admin';
-      
-      console.log('Admin checks:', { isAdminFlag, isAdminRole, isAdminUsername });
-      
-      // Return true if any admin check passes
-      return isAdminFlag || isAdminRole || isAdminUsername;
+      // Check for admin status in JWT claims
+      // Server-side authentication guarantees this is accurate
+      return !!state.user.isAdmin;
     },
     getUserRoles: state => state.userRoles,
     getCatalogPricing: state => state.catalogPricing,
@@ -415,6 +408,9 @@ export default new Vuex.Store({
     LOGOUT(state) {
       state.user = null
       state.isAuthenticated = false
+    },
+    SET_INITIAL_AUTH_CHECK(state, value) {
+      state.initialAuthCheckDone = value
     },
   },
   actions: {
@@ -989,8 +985,13 @@ export default new Vuex.Store({
     async login({ commit, dispatch }, credentials) {
       try {
         // Use the authService to login and handle JWT token storage
-        const response = await authService.login(credentials);
-        const { user } = response.data;
+        const result = await authService.login(credentials);
+        
+        if (!result.success) {
+          return { success: false, error: result.error };
+        }
+        
+        const { user } = result.data;
         
         // Update Vuex state
         commit('SET_AUTH', { user, isAuthenticated: true });
@@ -1004,19 +1005,52 @@ export default new Vuex.Store({
           }
         }
         
-        return true;
+        return { success: true };
       } catch (error) {
         console.error('Login error:', error);
-        return false;
+        return { success: false, error: 'Authentication failed' };
       }
     },
     
-    async logout({ commit }) {
+    async register({ commit }, userData) {
+      try {
+        const result = await authService.register(userData);
+        
+        if (!result.success) {
+          return { success: false, error: result.error, errors: result.errors };
+        }
+        
+        const { user } = result.data;
+        
+        // Update Vuex state
+        commit('SET_AUTH', { user, isAuthenticated: true });
+        
+        return { success: true };
+      } catch (error) {
+        console.error('Registration error:', error);
+        return { success: false, error: 'Registration failed' };
+      }
+    },
+    
+    logout({ commit }) {
       // Use the authService to handle logout and JWT token removal
-      await authService.logout();
+      authService.logout();
       
       // Update Vuex state
       commit('LOGOUT');
+    },
+    
+    // Check authentication status on app startup
+    checkAuth({ commit, dispatch }) {
+      const isAuthenticated = authService.checkAuth();
+      
+      if (isAuthenticated) {
+        // We already have the user in the store from the authService
+        commit('SET_INITIAL_AUTH_CHECK', true);
+      } else {
+        commit('LOGOUT');
+        commit('SET_INITIAL_AUTH_CHECK', true);
+      }
     },
     
     async checkAuth({ commit, dispatch, state }) {

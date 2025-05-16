@@ -1,39 +1,40 @@
 using System;
+using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RepairManagerApi.Models
 {
-    public class User
+    public class User : IdentityUser
     {
-        [Key]
-        public int Id { get; set; }
+        // Map legacy properties to Identity properties
+        [NotMapped]
+        public int LegacyId { 
+            get => int.TryParse(base.Id, out var id) ? id : 0; 
+            set => base.Id = value.ToString(); 
+        }
         
-        [Required]
-        [StringLength(50)]
-        public string Username { get; set; }
+        [NotMapped]
+        public string Username { 
+            get => UserName ?? string.Empty; 
+            set => UserName = value; 
+        }
         
-        [Required]
+        // Keep FullName as a custom property
         [StringLength(100)]
-        public string PasswordHash { get; set; }
+        public string FullName { get; set; } = string.Empty;
         
-        [Required]
-        [StringLength(100)]
-        public string FullName { get; set; }
-        
-        [StringLength(100)]
-        public string Email { get; set; }
-        
-        [Required]
+        // Role relationship is handled differently in Identity
+        // We'll use UserRoles collection instead
         public int RoleId { get; set; }
         
         [ForeignKey("RoleId")]
-        public UserRole Role { get; set; }
+        public UserRole? Role { get; set; }
         
         public int? GroupId { get; set; }
         
         [ForeignKey("GroupId")]
-        public Group Group { get; set; }
+        public Group? Group { get; set; }
         
         public bool IsAdmin { get; set; }
         

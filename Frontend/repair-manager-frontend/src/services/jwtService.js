@@ -1,20 +1,20 @@
 /**
  * JWT Authentication Service
  * Handles all JWT token operations including storage, retrieval, and validation
+ * 
+ * This service is designed to work with ASP.NET Core Identity JWT tokens
+ * and supports secure token handling for server-side authentication
  */
 
 // Token storage key in localStorage
 const TOKEN_KEY = 'auth_token';
-const USER_KEY = 'auth_user';
 
 /**
- * Save the JWT token and user data to localStorage
+ * Save the JWT token to localStorage
  * @param {string} token - JWT token
- * @param {object} user - User data object
  */
-const saveToken = (token, user) => {
+const saveToken = (token) => {
   localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
 };
 
 /**
@@ -26,28 +26,32 @@ const getToken = () => {
 };
 
 /**
- * Get the user data from localStorage
- * @returns {object|null} - User data object or null if not found
+ * Get user information from the JWT token
+ * @returns {object|null} - User data extracted from token or null if not found
  */
-const getUser = () => {
-  const userData = localStorage.getItem(USER_KEY);
-  if (userData) {
-    try {
-      return JSON.parse(userData);
-    } catch (e) {
-      console.error('Error parsing user data from localStorage:', e);
-      return null;
-    }
-  }
-  return null;
+const getUserFromToken = () => {
+  const token = getToken();
+  if (!token) return null;
+  
+  const payload = parseToken(token);
+  if (!payload) return null;
+  
+  // Extract user information from the token claims
+  return {
+    id: payload.userId || payload.sub,
+    username: payload.username || payload.sub,
+    email: payload.email,
+    isAdmin: payload.isAdmin === 'True' || payload.isAdmin === true,
+    role: payload.role,
+    groupId: payload.groupId ? parseInt(payload.groupId) : null
+  };
 };
 
 /**
- * Remove the JWT token and user data from localStorage
+ * Remove the JWT token from localStorage
  */
 const removeToken = () => {
   localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
 };
 
 /**
@@ -112,7 +116,7 @@ const getTokenRemainingTime = (token) => {
 export default {
   saveToken,
   getToken,
-  getUser,
+  getUserFromToken,
   removeToken,
   isAuthenticated,
   parseToken,

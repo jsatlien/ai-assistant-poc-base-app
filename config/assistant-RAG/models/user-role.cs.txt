@@ -1,0 +1,38 @@
+// FILE: UserRole.cs
+// MODEL: UserRole (Entity Framework)
+
+using System.ComponentModel.DataAnnotations;
+
+namespace RepairManagerApi.Models
+{
+    public class UserRole
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [StringLength(50)]
+        public string Name { get; set; }
+        
+        [StringLength(200)]
+        public string Description { get; set; }
+        
+        public bool CanManageUsers { get; set; }
+        
+        public bool CanManageRoles { get; set; }
+        
+        public bool CanManageInventory { get; set; }
+        
+        public bool CanManageCatalog { get; set; }
+        
+        public bool CanCreateWorkOrders { get; set; }
+        
+        public bool CanEditWorkOrders { get; set; }
+        
+        public bool CanDeleteWorkOrders { get; set; }
+        
+        public bool CanManagePrograms { get; set; }
+        
+        public bool CanManageWorkflows { get; set; }
+    }
+}

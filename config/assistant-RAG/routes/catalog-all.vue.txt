@@ -1,0 +1,268 @@
+// FILE: Pages/Catalog/AllItems.vue
+// ROUTE: /catalog/all
+
+<template>
+  <div class="all-items-page">
+    <div class="page-header">
+      <h1 class="page-title">All Catalog Items</h1>
+    </div>
+
+    <div class="search-filter">
+      <div class="search-box">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          placeholder="Search all items..." 
+          class="search-input"
+        />
+      </div>
+      <div class="filter-options">
+        <label class="filter-label">
+          <input type="checkbox" v-model="showDevices" class="filter-checkbox"> 
+          Devices
+        </label>
+        <label class="filter-label">
+          <input type="checkbox" v-model="showServices" class="filter-checkbox"> 
+          Services
+        </label>
+        <label class="filter-label">
+          <input type="checkbox" v-model="showParts" class="filter-checkbox"> 
+          Parts
+        </label>
+      </div>
+    </div>
+
+    <div v-if="filteredItems.length > 0" class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>SKU</th>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in filteredItems" :key="`${item.type}-${item.id}`" :class="`item-type-${item.type.toLowerCase()}`">
+            <td>{{ item.type }}</td>
+            <td>{{ item.sku }}</td>
+            <td>{{ item.name }}</td>
+            <td>{{ item.description }}</td>
+            <td class="actions-cell">
+              <button class="btn-view" @click="viewItem(item)">View</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-else class="empty-state">
+      <p v-if="searchQuery || !showDevices || !showServices || !showParts">No items found matching your search criteria.</p>
+      <p v-else>No catalog items found.</p>
+    </div>
+  </div>
+</template>
+
+<script>
+import { mapGetters } from 'vuex';
+
+export default {
+  name: 'AllCatalogItems',
+  data() {
+    return {
+      searchQuery: '',
+      showDevices: true,
+      showServices: true,
+      showParts: true
+    };
+  },
+  computed: {
+    ...mapGetters({
+      allItems: 'getAllCatalogItems'
+    }),
+    filteredItems() {
+      let items = this.allItems;
+      
+      // Apply type filters
+      if (!this.showDevices) {
+        items = items.filter(item => item.type !== 'Device');
+      }
+      if (!this.showServices) {
+        items = items.filter(item => item.type !== 'Service');
+      }
+      if (!this.showParts) {
+        items = items.filter(item => item.type !== 'Part');
+      }
+      
+      // Apply search filter
+      if (this.searchQuery) {
+        const query = this.searchQuery.toLowerCase();
+        items = items.filter(item => 
+          item.name.toLowerCase().includes(query) || 
+          item.description.toLowerCase().includes(query) ||
+          (item.sku && item.sku.toLowerCase().includes(query)) ||
+          item.type.toLowerCase().includes(query)
+        );
+      }
+      
+      return items;
+    }
+  },
+  methods: {
+    viewItem(item) {
+      let route;
+      switch (item.type) {
+        case 'Device':
+          route = '/catalog/devices';
+          break;
+        case 'Service':
+          route = '/catalog/services';
+          break;
+        case 'Part':
+          route = '/catalog/parts';
+          break;
+        default:
+          route = '/catalog';
+      }
+      this.$router.push(route);
+    }
+  },
+  created() {
+    // Fetch all necessary data
+    this.$store.dispatch('fetchDevices');
+    this.$store.dispatch('fetchServiceCategories');
+    this.$store.dispatch('fetchServices');
+    this.$store.dispatch('fetchParts');
+  }
+};
+</script>
+
+<style scoped>
+.all-items-page {
+  padding: 2rem;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+  margin: 0;
+}
+
+.search-filter {
+  margin-bottom: 2rem;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.filter-options {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.filter-label {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.filter-checkbox {
+  margin-right: 0.5rem;
+}
+
+.table-container {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.data-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+  color: #333;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background-color: #f5f5f5;
+}
+
+.item-type-device {
+  border-left: 4px solid #4caf50;
+}
+
+.item-type-service {
+  border-left: 4px solid #2196f3;
+}
+
+.item-type-part {
+  border-left: 4px solid #ff9800;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 0;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state p {
+  margin-bottom: 1.5rem;
+  color: #666;
+}
+
+.btn-view {
+  background-color: transparent;
+  color: #08c;
+  border: 1px solid #08c;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-view:hover {
+  background-color: #08c;
+  color: #fff;
+}
+</style>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using RepairManagerApi.Data;
@@ -14,25 +15,34 @@ namespace RepairManagerApi.Controllers
     public class UsersController : ControllerBase
     {
         private readonly RepairManagerContext _context;
+        private readonly UserManager<User> _userManager;
 
-        public UsersController(RepairManagerContext context)
+        public UsersController(RepairManagerContext context, UserManager<User> userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
         // GET: api/users
         [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
-            return await _context.Users
+            var users = await _context.Users
                 .Include(u => u.Role)
                 .Include(u => u.Group)
-                .Select(u => new User
+                .ToListAsync();
+                
+            // Map to response objects to exclude sensitive data
+            return users.Select(u => {
+                int id = 0;
+                int.TryParse(u.Id, out id);
+                
+                var user = new User
                 {
                     Id = u.Id,
-                    Username = u.Username,
-                    FullName = u.FullName,
+                    UserName = u.UserName,
                     Email = u.Email,
+                    FullName = u.FullName,
                     RoleId = u.RoleId,
                     Role = u.Role,
                     GroupId = u.GroupId,
@@ -40,14 +50,16 @@ namespace RepairManagerApi.Controllers
                     IsAdmin = u.IsAdmin,
                     CreatedAt = u.CreatedAt,
                     LastLoginAt = u.LastLoginAt
-                    // Note: PasswordHash is intentionally excluded from the response
-                })
-                .ToListAsync();
+                    // PasswordHash is intentionally excluded
+                };
+                
+                return user;
+            }).ToList();
         }
 
         // GET: api/users/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
+        public async Task<ActionResult<User>> GetUser(string id)
         {
             var user = await _context.Users
                 .Include(u => u.Role)
@@ -69,12 +81,13 @@ namespace RepairManagerApi.Controllers
         [HttpPost]
         public async Task<ActionResult<User>> PostUser(User user)
         {
-            // In a real application, you would hash the password here
-            // For demo purposes, we'll just store it as is
-            // user.PasswordHash = HashPassword(user.PasswordHash);
+            // Create the user with Identity
+            var result = await _userManager.CreateAsync(user, user.PasswordHash);
             
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
 
             // Don't return the password hash
             user.PasswordHash = null;
@@ -84,40 +97,45 @@ namespace RepairManagerApi.Controllers
 
         // PUT: api/users/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutUser(int id, User user)
+        public async Task<IActionResult> PutUser(string id, User user)
         {
             if (id != user.Id)
             {
                 return BadRequest();
             }
 
-            // If updating the password, you would hash it here
-            // if (!string.IsNullOrEmpty(user.PasswordHash))
-            // {
-            //     user.PasswordHash = HashPassword(user.PasswordHash);
-            // }
-            // else
-            // {
-            //     // If password is not provided, keep the existing one
-            //     var existingUser = await _context.Users.FindAsync(id);
-            //     user.PasswordHash = existingUser.PasswordHash;
-            // }
-
-            _context.Entry(user).State = EntityState.Modified;
-
-            try
+            // Get the existing user
+            var existingUser = await _userManager.FindByIdAsync(id);
+            if (existingUser == null)
             {
-                await _context.SaveChangesAsync();
+                return NotFound();
             }
-            catch (DbUpdateConcurrencyException)
+
+            // Update user properties
+            existingUser.UserName = user.UserName;
+            existingUser.Email = user.Email;
+            existingUser.FullName = user.FullName;
+            existingUser.RoleId = user.RoleId;
+            existingUser.GroupId = user.GroupId;
+            existingUser.IsAdmin = user.IsAdmin;
+
+            // Update the user with Identity
+            var result = await _userManager.UpdateAsync(existingUser);
+            
+            if (!result.Succeeded)
             {
-                if (!UserExists(id))
+                return BadRequest(result.Errors);
+            }
+
+            // If password is provided, update it
+            if (!string.IsNullOrEmpty(user.PasswordHash))
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(existingUser);
+                var passwordResult = await _userManager.ResetPasswordAsync(existingUser, token, user.PasswordHash);
+                
+                if (!passwordResult.Succeeded)
                 {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
+                    return BadRequest(passwordResult.Errors);
                 }
             }
 
@@ -126,21 +144,24 @@ namespace RepairManagerApi.Controllers
 
         // DELETE: api/users/5
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
+        public async Task<IActionResult> DeleteUser(string id)
         {
-            var user = await _context.Users.FindAsync(id);
+            var user = await _userManager.FindByIdAsync(id);
             if (user == null)
             {
                 return NotFound();
             }
 
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors);
+            }
 
             return NoContent();
         }
 
-        private bool UserExists(int id)
+        private bool UserExists(string id)
         {
             return _context.Users.Any(e => e.Id == id);
         }

@@ -1,108 +1,132 @@
 import api from './api';
 import jwtService from './jwtService';
+import store from '../store';
 
-export default {
+const authService = {
   /**
-   * Authenticate user and save token
-   * @param {Object} credentials - User credentials
-   * @returns {Promise} - Promise with login response
+   * Login with the server-side authentication system
+   * @param {Object} credentials - User credentials (username, password)
+   * @returns {Promise<Object>} Login result
    */
   async login(credentials) {
     try {
+      console.log('Attempting login with credentials:', credentials);
       const response = await api.post('/Auth/login', credentials);
       const { token, user } = response.data;
       
-      console.log('Login response user object:', user);
-      
-      // Ensure user has isAdmin property set correctly
-      // Use the IsAdmin property from the database
+      // Ensure user object has consistent property names
       if (user) {
-        // If IsAdmin exists in the response, use it directly
-        if (user.IsAdmin !== undefined) {
-          user.isAdmin = !!user.IsAdmin; // Convert to boolean
-          console.log('Setting isAdmin from IsAdmin:', user.isAdmin);
-        } else {
-          // Force admin status for the 'admin' user
-          if (user.Username === 'admin' || user.username === 'admin') {
-            user.isAdmin = true;
-            console.log('Forcing isAdmin=true for admin user');
-          }
+        // Normalize admin status
+        if (user.isAdmin === undefined && user.IsAdmin !== undefined) {
+          user.isAdmin = user.IsAdmin;
         }
+        console.log('User object from API:', user);
       }
       
-      console.log('Final user object with admin status:', user);
+      // Store token in localStorage
+      jwtService.saveToken(token);
       
-      // Save token and user data
-      jwtService.saveToken(token, user);
+      // Update store with user data
+      store.commit('SET_AUTH', { user, isAuthenticated: true });
       
-      return response;
+      return { success: true, data: response.data };
     } catch (error) {
-      // For demo purposes, provide a fallback if the API fails
-      if (credentials.username === 'admin' && credentials.password === 'admin123') {
-        const user = {
-          id: 1,
-          username: 'admin',
-          fullName: 'System Administrator',
-          email: 'admin@repairmanager.com',
-          role: 'Administrator',
-          isAdmin: true,
-          groupId: credentials.groupId // Store the selected group ID
-        };
-        const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibmFtZSI6ImFkbWluIiwicm9sZSI6IkFkbWluaXN0cmF0b3IiLCJpc0FkbWluIjp0cnVlLCJleHAiOjE5MDAwMDAwMDB9.3fFSvgEGpJatjLGdA-N3gEfbXN9HtrtSt8OA8gTYXo8';
-        
-        // Save token and user data
-        jwtService.saveToken(token, user);
-        
-        return {
-          data: { token, user }
-        };
-      }
-      
-      throw error;
+      console.error('Login error:', error);
+      return { success: false, error: error.response?.data?.message || 'Login failed' };
     }
   },
   
   /**
-   * Get current user information
-   * @returns {Promise} - Promise with user data
+   * Register a new user
+   * @param {Object} userData - User registration data
+   * @returns {Promise<Object>} Registration result
+   */
+  async register(userData) {
+    try {
+      const response = await api.post('/Auth/register', userData);
+      const { token, user } = response.data;
+      
+      // Store token in localStorage
+      jwtService.saveToken(token);
+      
+      // Update store with user data
+      store.commit('SET_AUTH', { user, isAuthenticated: true });
+      
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Registration failed',
+        errors: error.response?.data?.errors
+      };
+    }
+  },
+  
+  /**
+   * Get current user information from the server
+   * @returns {Promise<Object>} User data
    */
   async getCurrentUser() {
     try {
-      return await api.get('/Auth/me');
+      // This endpoint would need to be implemented on the backend
+      const response = await api.get('/Auth/me');
+      return { success: true, data: response.data };
     } catch (error) {
-      // If the API fails, try to use stored user data
-      const user = jwtService.getUser();
-      if (user) {
-        return { data: user };
-      }
-      throw error;
+      console.error('Error fetching current user:', error);
+      return { success: false, error: 'Failed to fetch user data' };
     }
   },
   
   /**
    * Logout the current user
-   * @returns {Promise} - Promise that resolves when logout is complete
    */
   logout() {
-    // Remove token and user data
+    // Remove token from localStorage
     jwtService.removeToken();
-    return Promise.resolve();
+    
+    // Clear auth state in store
+    store.commit('LOGOUT');
   },
   
   /**
    * Check if the user is authenticated
-   * @returns {boolean} - True if authenticated, false otherwise
+   * @returns {boolean} True if authenticated
    */
-  isAuthenticated() {
-    return jwtService.isAuthenticated();
+  checkAuth() {
+    const token = jwtService.getToken();
+    if (!token) {
+      return false;
+    }
+    
+    // Check if token is expired
+    if (jwtService.isTokenExpired(token)) {
+      this.logout();
+      return false;
+    }
+    
+    // If we have a valid token but no user in store, try to restore session
+    if (!store.getters.currentUser) {
+      // In a real app, we would fetch the user profile here
+      // For now, just clear the invalid token
+      this.logout();
+      return false;
+    }
+    
+    return true;
   },
   
   /**
-   * Check if the current token is valid
-   * @returns {boolean} - True if token is valid, false otherwise
+   * Get the current authentication status
+   * @returns {Object} Authentication status
    */
-  isTokenValid() {
-    const token = jwtService.getToken();
-    return token && !jwtService.isTokenExpired(token);
+  getAuthStatus() {
+    return {
+      isAuthenticated: store.getters.isAuthenticated,
+      user: store.getters.currentUser,
+      token: jwtService.getToken()
+    };
   }
 };
+
+export default authService;

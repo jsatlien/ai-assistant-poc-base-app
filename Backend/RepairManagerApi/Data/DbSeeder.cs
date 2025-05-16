@@ -5,12 +5,14 @@ using System.Linq;
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Identity;
+using System.Threading.Tasks;
 
 namespace RepairManagerApi.Data
 {
     public static class DbSeeder
     {
-        public static void SeedData(RepairManagerContext context)
+        public static async Task SeedDataAsync(RepairManagerContext context, UserManager<User> userManager, RoleManager<IdentityRole> roleManager)
         {
             Console.WriteLine("Starting database seeding process...");
             
@@ -18,15 +20,19 @@ namespace RepairManagerApi.Data
             int mainGroupId = SeedMainGroup(context);
             Console.WriteLine($"Main Group created with ID: {mainGroupId}");
             
-            // 2. Seed the Administrator role
+            // 2. Seed Identity roles first
+            await SeedIdentityRolesAsync(roleManager);
+            Console.WriteLine("Identity roles created successfully");
+            
+            // 3. Seed the Administrator role (legacy)
             int adminRoleId = SeedAdminRole(context);
             Console.WriteLine($"Administrator role created with ID: {adminRoleId}");
             
-            // 3. Seed the admin user
-            int adminUserId = SeedAdminUser(context, adminRoleId, mainGroupId);
+            // 4. Seed the admin user
+            string adminUserId = await SeedAdminUserAsync(context, userManager, adminRoleId, mainGroupId);
             Console.WriteLine($"Admin user created with ID: {adminUserId}");
             
-            // 4. Seed manufacturers
+            // 5. Seed manufacturers
             SeedManufacturers(context);
             Console.WriteLine("Manufacturers seeded successfully");
             
@@ -129,39 +135,88 @@ namespace RepairManagerApi.Data
             return adminRole.Id;
         }
         
-        private static int SeedAdminUser(RepairManagerContext context, int roleId, int groupId)
+        private static async Task SeedIdentityRolesAsync(RoleManager<IdentityRole> roleManager)
+        {
+            Console.WriteLine("Creating Identity roles...");
+            
+            // Define the roles we want to create
+            string[] roleNames = { "Administrator", "User", "Manager", "Technician" };
+            
+            foreach (var roleName in roleNames)
+            {
+                // Check if the role already exists
+                var roleExists = await roleManager.RoleExistsAsync(roleName);
+                if (!roleExists)
+                {
+                    // Create the role
+                    var role = new IdentityRole(roleName);
+                    var result = await roleManager.CreateAsync(role);
+                    
+                    if (result.Succeeded)
+                    {
+                        Console.WriteLine($"Created role: {roleName}");
+                    }
+                    else
+                    {
+                        var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                        Console.WriteLine($"Failed to create role {roleName}: {errors}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Role {roleName} already exists");
+                }
+            }
+        }
+        
+        private static async Task<string> SeedAdminUserAsync(RepairManagerContext context, UserManager<User> userManager, int adminRoleId, int groupId)
         {
             Console.WriteLine("Creating admin user...");
             
             // Check if the admin user already exists
-            var existingUser = context.Users.FirstOrDefault(u => u.Username == "admin");
+            var existingUser = await userManager.FindByNameAsync("admin");
             if (existingUser != null)
             {
                 Console.WriteLine($"Admin user already exists with ID: {existingUser.Id}");
+                
+                // Ensure the user is in the Administrator role
+                if (!await userManager.IsInRoleAsync(existingUser, "Administrator"))
+                {
+                    await userManager.AddToRoleAsync(existingUser, "Administrator");
+                    Console.WriteLine("Added existing admin user to Administrator role");
+                }
+                
                 return existingUser.Id;
             }
             
-            // Create the admin user
+            // Create the admin user with Identity
             var adminUser = new User
             {
-                Username = "admin",
-                PasswordHash = HashPassword("admin123"),
+                UserName = "admin",
                 FullName = "System Administrator",
-                Email = "admin@repairmanager.com",
-                RoleId = roleId,
+                Email = "admin@example.com",
+                RoleId = adminRoleId,
                 GroupId = groupId,
                 IsAdmin = true,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                EmailConfirmed = true
             };
             
-            context.Users.Add(adminUser);
-            context.SaveChanges();
+            var result = await userManager.CreateAsync(adminUser, "admin123");
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new Exception($"Failed to create admin user: {errors}");
+            }
+            
+            // Add the admin user to the Administrator role
+            await userManager.AddToRoleAsync(adminUser, "Administrator");
             
             Console.WriteLine($"Admin user created with ID: {adminUser.Id}");
             return adminUser.Id;
         }
         
-        // Helper method to hash passwords
+        // Helper method to hash passwords (legacy method, not used with Identity)
         private static string HashPassword(string password)
         {
             using (var sha256 = SHA256.Create())
@@ -170,7 +225,7 @@ namespace RepairManagerApi.Data
                 return BitConverter.ToString(hashedBytes).Replace("-", "").ToLower();
             }
         }
-
+        
         private static void SeedProductCategories(RepairManagerContext context)
         {
             if (!context.ProductCategories.Any())

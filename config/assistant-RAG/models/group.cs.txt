@@ -1,0 +1,45 @@
+// FILE: Group.cs
+// MODEL: Group (Entity Framework)
+
+using System.ComponentModel.DataAnnotations;
+
+namespace RepairManagerApi.Models
+{
+    public class Group
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [StringLength(20)]
+        public string Code { get; set; }
+        
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; }
+        
+        [StringLength(100)]
+        public string Address1 { get; set; }
+        
+        [StringLength(100)]
+        public string Address2 { get; set; }
+        
+        [StringLength(100)]
+        public string Address3 { get; set; }
+        
+        [StringLength(100)]
+        public string Address4 { get; set; }
+        
+        [StringLength(50)]
+        public string City { get; set; }
+        
+        [StringLength(50)]
+        public string State { get; set; }
+        
+        [StringLength(20)]
+        public string Zip { get; set; }
+        
+        [StringLength(50)]
+        public string Country { get; set; }
+    }
+}

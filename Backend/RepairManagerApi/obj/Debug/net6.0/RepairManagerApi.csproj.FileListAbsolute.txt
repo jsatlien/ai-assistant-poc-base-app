@@ -16,7 +16,6 @@ C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.Extensions.Caching.Memory.dll
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.Extensions.DependencyInjection.dll
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.Extensions.DependencyModel.dll
-C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.IdentityModel.Abstractions.dll
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.IdentityModel.JsonWebTokens.dll
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.IdentityModel.Logging.dll
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.IdentityModel.Protocols.dll
@@ -69,3 +68,4 @@ C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\obj\Debug\
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\obj\Debug\net6.0\RepairManagerApi.pdb
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\obj\Debug\net6.0\RepairManagerApi.genruntimeconfig.cache
 C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\obj\Debug\net6.0\ref\RepairManagerApi.dll
+C:\Users\Jsatl\CascadeProjects\RepairManager\Backend\RepairManagerApi\bin\Debug\net6.0\Microsoft.AspNetCore.Identity.EntityFrameworkCore.dll
