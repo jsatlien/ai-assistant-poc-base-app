@@ -7,7 +7,10 @@
         class="message"
         :class="message.role"
       >
-        <div class="message-content">{{ message.content }}</div>
+        <div 
+          class="message-content" 
+          v-html="formatMessage(message.content)"
+        ></div>
       </div>
       <div v-if="isLoading" class="message assistant loading">
         <div class="typing-indicator">
@@ -36,6 +39,10 @@
 </template>
 
 <script>
+// Import the marked library
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
 export default {
   name: 'ConversationArea',
   props: {
@@ -50,13 +57,18 @@ export default {
   },
   data() {
     return {
-      inputMessage: ''
+      inputMessage: '',
+      highlightRegex: /\[\[highlight:([^|]+)\|([^\]]+)\]\]/g
     };
   },
   watch: {
     messages() {
       this.$nextTick(() => {
         this.scrollToBottom();
+        // Process any highlight instructions in the latest message
+        if (this.messages.length > 0 && this.messages[this.messages.length - 1].role === 'assistant') {
+          this.processHighlights(this.messages[this.messages.length - 1].content);
+        }
       });
     }
   },
@@ -74,6 +86,132 @@ export default {
       if (this.$refs.messagesContainer) {
         this.$refs.messagesContainer.scrollTop = this.$refs.messagesContainer.scrollHeight;
       }
+    },
+    formatMessage(message) {
+      if (!message) return '';
+      
+      // Remove OpenAI retrieval citations - handle all formats
+      message = message.replace(/【\d+:\d+†[a-zA-Z0-9_.-]+】/g, '');
+      message = message.replace(/【\d+:\d+†[a-zA-Z0-9_.-]+】/g, ''); // Handle the actual format from the example
+      message = message.replace(/\[\d+:\d+\]/g, '');
+      message = message.replace(/\(\d+:\d+\)/g, '');
+      
+      // Try to parse the new parenthesis-based format with the exact structure from the example
+      const userResponseMatch = message.match(/\(USER_RESPONSE\)[\s\n]*([\s\S]*?)(?=\s*\(HIGHLIGHT_ELEMENT\)|$)/);
+      const highlightMatch = message.match(/\(HIGHLIGHT_ELEMENT\)\s*\[([\s\S]*?)\]/);
+      
+      // Debug logging
+      console.log('Parsing message format:', { 
+        hasUserResponse: !!userResponseMatch, 
+        hasHighlight: !!highlightMatch,
+        highlightContent: highlightMatch ? highlightMatch[1] : null
+      });
+      
+      if (userResponseMatch) {
+        const userResponse = userResponseMatch[1];
+        
+        // Process highlight element if present
+        if (highlightMatch && highlightMatch[1] !== 'none') {
+          const highlightLine = highlightMatch[1];
+          
+          if (highlightLine.startsWith('highlight:')) {
+            // Log the highlight data for debugging
+            console.log('Processing highlight:', highlightLine);
+            
+            const [selectorPart, description] = highlightLine.replace('highlight:', '').split('|');
+            console.log('Parsed highlight parts:', { selectorPart, description });
+            
+            const selector = Object.fromEntries(
+              selectorPart.split(',').map(kv => kv.split('=').map(x => x.trim()))
+            );
+            console.log('Selector object:', selector);
+            
+            // Convert selector object to selector string
+            const selectorString = Object.entries(selector)
+              .map(([key, value]) => `${key}=${value}`)
+              .join(',');
+            console.log('Final selector string:', selectorString);
+              
+            // Emit the highlight event with a slight delay to ensure DOM is ready
+            setTimeout(() => {
+              this.$emit('highlight-element', { selectorData: selectorString, description });
+            }, 500);
+          }
+        }
+        
+        // Parse markdown and sanitize
+        const html = marked(userResponse);
+        return DOMPurify.sanitize(html);
+      } else {
+        // Try the previous ###SECTION### format
+        const parts = message.split(/###([A-Z_]+)###\n?/);
+        const sectionMap = {};
+        
+        for (let i = 1; i < parts.length; i += 2) {
+          sectionMap[parts[i]] = parts[i + 1]?.trim();
+        }
+        
+        // If the message follows the structured format
+        if (sectionMap.USER_RESPONSE) {
+          // Process the highlight element section
+          if (sectionMap.HIGHLIGHT_ELEMENT && sectionMap.HIGHLIGHT_ELEMENT !== 'none') {
+            const highlightLine = sectionMap.HIGHLIGHT_ELEMENT;
+            
+            if (highlightLine.startsWith('highlight:')) {
+              const [selectorPart, description] = highlightLine.replace('highlight:', '').split('|');
+              const selector = Object.fromEntries(
+                selectorPart.split(',').map(kv => kv.split('=').map(x => x.trim()))
+              );
+              
+              // Convert selector object to selector string
+              const selectorString = Object.entries(selector)
+                .map(([key, value]) => `${key}=${value}`)
+                .join(',');
+                
+              this.$emit('highlight-element', { selectorData: selectorString, description });
+            }
+          }
+          
+          // Parse markdown and sanitize
+          const html = marked(sectionMap.USER_RESPONSE);
+          return DOMPurify.sanitize(html);
+        } else {
+          // Fallback to the old format for backward compatibility
+          
+          // Process highlight markup and store for later use
+          const cleanedMessage = message.replace(this.highlightRegex, (match, selector, description) => {
+            return description; // Replace with just the description
+          });
+          
+          // Find the first highlight in the message
+          const match = this.highlightRegex.exec(message);
+          if (match) {
+            // Use direct array indexing instead of destructuring to avoid unused variables
+            const selectorData = match[1];
+            const description = match[2];
+            this.$emit('highlight-element', { selectorData, description });
+          }
+          
+          // Parse markdown and sanitize
+          const html = marked(cleanedMessage);
+          return DOMPurify.sanitize(html);
+        }
+      }
+    },
+    processHighlights(message) {
+      if (!message) return;
+      
+      // Find the first highlight in the message
+      const match = this.highlightRegex.exec(message);
+      if (match) {
+        // Use direct array indexing instead of destructuring to avoid unused variables
+        const selectorData = match[1];
+        const description = match[2];
+        this.$emit('highlight-element', { selectorData, description });
+      }
+      
+      // Reset regex lastIndex for future use
+      this.highlightRegex.lastIndex = 0;
     }
   }
 };
@@ -100,6 +238,11 @@ export default {
   padding: 8px 12px;
   border-radius: 18px;
   word-break: break-word;
+  overflow-wrap: break-word;
+  width: fit-content;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .message.user {
@@ -184,5 +327,71 @@ export default {
   30% {
     transform: translateY(-5px);
   }
+}
+
+/* Markdown styling */
+.message-content {
+  line-height: 1.5;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  padding: 0 10px;
+}
+
+.message-content p {
+  margin: 0 0 10px 0;
+}
+
+.message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.message-content ul, 
+.message-content ol {
+  margin: 10px 0;
+  padding-left: 30px;
+  padding-right: 10px;
+  box-sizing: border-box;
+  max-width: 100%;
+  width: calc(100% - 30px);
+  display: block;
+}
+
+.message-content li {
+  margin-bottom: 5px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.message-content strong {
+  font-weight: bold;
+}
+
+.message-content em {
+  font-style: italic;
+}
+
+.message-content code {
+  font-family: monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.message-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 10px;
+  border-radius: 5px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.message-content pre code {
+  background-color: transparent;
+  padding: 0;
 }
 </style>

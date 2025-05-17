@@ -44,6 +44,7 @@
       :messages="messages" 
       :isLoading="isLoading"
       @send-message="handleSendMessage"
+      @highlight-element="handleHighlightElement"
     />
   </div>
 </template>
@@ -314,21 +315,139 @@ export default {
         this.isLoading = false;
       }
     },
-    highlightElement(selector) {
-      // Simple implementation of element highlighting
-      const element = document.querySelector(selector);
-      if (!element) return;
+    findElementBySelectorData(selectorString) {
+      try {
+        // Parse the selector data into parts
+        const parts = Object.fromEntries(
+          selectorString.split(',').map(p => {
+            const [key, value] = p.split('=').map(x => x.trim());
+            return [key, value];
+          })
+        );
+
+        const tag = parts.tag || '*';
+        const text = parts.text;
+        const id = parts.id;
+        const className = parts.class;
+
+        // Try to find by ID first (most specific)
+        if (id) {
+          const element = document.getElementById(id);
+          if (element) return element;
+        }
+
+        // Try to find by class
+        if (className) {
+          const elements = document.getElementsByClassName(className);
+          if (elements.length > 0) {
+            // If we also have text, filter by text content
+            if (text) {
+              for (const el of elements) {
+                if (el.textContent?.trim() === text) {
+                  return el;
+                }
+              }
+            } else {
+              return elements[0]; // Return first match if no text specified
+            }
+          }
+        }
+
+        // Find by tag and text content
+        if (text) {
+          const candidates = Array.from(document.querySelectorAll(tag));
+          return candidates.find(el => el.textContent?.trim() === text);
+        }
+
+        // If all else fails, try as a CSS selector
+        return document.querySelector(selectorString);
+      } catch (error) {
+        console.error('Error parsing selector data:', error);
+        return null;
+      }
+    },
+    
+    highlightElement(element, description) {
+      if (!element) {
+        console.warn('Element not found for highlighting');
+        return;
+      }
       
-      const originalBackground = element.style.backgroundColor;
-      const originalTransition = element.style.transition;
+      // Initialize Shepherd if not already done
+      if (!window.Shepherd) {
+        console.warn('Shepherd.js not found. Element highlighting will use fallback method.');
+        // Fallback highlighting method
+        const originalBackground = element.style.backgroundColor;
+        const originalTransition = element.style.transition;
+        
+        element.style.transition = 'background-color 0.3s ease';
+        element.style.backgroundColor = 'rgba(74, 144, 226, 0.3)';
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        setTimeout(() => {
+          element.style.backgroundColor = originalBackground;
+          element.style.transition = originalTransition;
+        }, 3000);
+        return;
+      }
       
-      element.style.transition = 'background-color 0.3s ease';
-      element.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
+      // Use Shepherd.js for highlighting
+      const tour = new window.Shepherd.Tour({
+        defaultStepOptions: {
+          cancelIcon: {
+            enabled: true
+          },
+          classes: 'assistant-highlight-tooltip',
+          scrollTo: true
+        }
+      });
       
-      setTimeout(() => {
-        element.style.backgroundColor = originalBackground;
-        element.style.transition = originalTransition;
-      }, 2000);
+      tour.addStep({
+        id: 'highlight-step',
+        attachTo: {
+          element: element,
+          on: 'bottom'
+        },
+        text: description || 'This element is relevant to your query',
+        buttons: [
+          {
+            text: 'Got it',
+            action: tour.complete
+          }
+        ]
+      });
+      
+      tour.start();
+    },
+    
+    handleHighlightElement({ selectorData, description }) {
+      console.log('Highlighting element request received:', { selectorData, description });
+      
+      if (!selectorData) {
+        console.warn('No selector data provided for highlighting');
+        return;
+      }
+      
+      // Try to find the element
+      const element = this.findElementBySelectorData(selectorData);
+      
+      if (element) {
+        console.log('Element found:', element);
+        this.highlightElement(element, description);
+      } else {
+        console.warn(`Element not found for selector data: ${selectorData}`);
+        // Try again after a short delay in case DOM is still updating
+        setTimeout(() => {
+          const retryElement = this.findElementBySelectorData(selectorData);
+          if (retryElement) {
+            console.log('Element found on retry:', retryElement);
+            this.highlightElement(retryElement, description);
+          } else {
+            // Just log to console but don't show any user-facing message
+            console.warn(`Element still not found after retry for: ${selectorData}`);
+          }
+        }, 1000);
+      }
     }
   }
 };

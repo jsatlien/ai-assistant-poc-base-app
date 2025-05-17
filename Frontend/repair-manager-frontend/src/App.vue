@@ -105,6 +105,11 @@
 <script>
 // Import the local AssistantWidget component
 import AssistantWidget from './lib/onboarding-assistant/AssistantWidget.vue';
+import Shepherd from 'shepherd.js';
+import './lib/onboarding-assistant/shepherd-custom.css';
+
+// Make Shepherd globally available for the AssistantWidget
+window.Shepherd = Shepherd;
 
 export default {
   name: 'App',
