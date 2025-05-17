@@ -8,7 +8,8 @@
 import store from './store';
 import router from './router';
 import jwtService from './services/jwtService';
-import authService from './services/authService';
+// Commented out as it's currently unused
+// import authService from './services/authService';
 
 // Authentication state
 const auth = {

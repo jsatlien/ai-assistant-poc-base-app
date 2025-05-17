@@ -52,9 +52,9 @@ export default new Vuex.Store({
     // Groups
     groups: [],
     currentGroup: null,
-    // Authentication
-    user: null,
-    isAuthenticated: false,
+    // Authentication (already defined above)
+    // user: null,
+    // isAuthenticated: false,
     userRoles: [],
     catalogPricing: [],
     // Inventory
@@ -1040,18 +1040,18 @@ export default new Vuex.Store({
       commit('LOGOUT');
     },
     
-    // Check authentication status on app startup
-    checkAuth({ commit, dispatch }) {
-      const isAuthenticated = authService.checkAuth();
-      
-      if (isAuthenticated) {
-        // We already have the user in the store from the authService
-        commit('SET_INITIAL_AUTH_CHECK', true);
-      } else {
-        commit('LOGOUT');
-        commit('SET_INITIAL_AUTH_CHECK', true);
-      }
-    },
+    // Check authentication status on app startup (first version - removed to fix duplicate)
+    // checkAuth({ commit }) {
+    //   const isAuthenticated = authService.checkAuth();
+    //   
+    //   if (isAuthenticated) {
+    //     // We already have the user in the store from the authService
+    //     commit('SET_INITIAL_AUTH_CHECK', true);
+    //   } else {
+    //     commit('LOGOUT');
+    //     commit('SET_INITIAL_AUTH_CHECK', true);
+    //   }
+    // },
     
     async checkAuth({ commit, dispatch, state }) {
       // If we're already authenticated in Vuex state, just verify token

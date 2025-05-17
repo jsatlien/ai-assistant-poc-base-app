@@ -93,12 +93,24 @@
     <main class="app-content">
       <router-view />
     </main>
+    <!-- Onboarding Assistant Widget -->
+    <AssistantWidget 
+      api-base-url="http://localhost:5197/api"
+      assistant-name="Walli"
+      application-name="ServiceManager Flex"
+    />
   </div>
 </template>
 
 <script>
+// Import the local AssistantWidget component
+import AssistantWidget from './lib/onboarding-assistant/AssistantWidget.vue';
+
 export default {
   name: 'App',
+  components: {
+    AssistantWidget
+  },
   data() {
     return {
       showGroupSelector: false
